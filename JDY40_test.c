@@ -258,7 +258,7 @@ void main(void)
 
 	// We should select an unique device ID.  The device ID can be a hex
 	// number from 0x0000 to 0xFFFF.  In this case is set to 0xABBA
-/*	SendATCommand("AT+DVID6969\r\n");  
+	SendATCommand("AT+DVID6969\r\n");  
 
 	// To check configuration
 	SendATCommand("AT+VER\r\n");
@@ -267,7 +267,7 @@ void main(void)
 	SendATCommand("AT+DVID\r\n");
 	SendATCommand("AT+RFC\r\n");
 	SendATCommand("AT+POWE\r\n");
-	SendATCommand("AT+CLSS\r\n");           */
+	SendATCommand("AT+CLSS\r\n");           
 
     ANSELB &= ~(1<<6); // Set RB6 as a digital I/O
     TRISB |= (1<<6);   // configure pin RB6 as input
@@ -284,12 +284,12 @@ void main(void)
     	voltage_x = adcval_x*3.3/1023.0;
     	
     	printf("AN4=0x%04x, %.3fV AN3 = 0x%04x, %.3fV\r", adcval_y, voltage_y, adcval_x, voltage_x);
-    	fflush(stdout); // Makes the printf() above to send without a '\n' at the end
+ //   	fflush(stdout); // Makes the printf() above to send without a '\n' at the end
 		t = 0;
-		delayms(200);
+		
 		if((PORTB&(1<<6))==0)
 		{
-			sprintf(buff, "JDY40 test %d\r\n", cnt++);
+			sprintf(buff, "f/b %f  r/l %f\r\n", voltage_y, voltage_x);
 			SerialTransmit1(buff);
 			printf(".");
 			delayms(200);
