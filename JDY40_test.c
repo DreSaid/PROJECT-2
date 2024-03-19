@@ -227,13 +227,20 @@ void main(void)
     volatile unsigned long t=0;
     int adcval;
     float voltage;
+    float voltage_x;
+    float voltage_y;
+    int adcval_x;
+    int adcval_y;
     
 	DDPCON = 0;
 	CFGCON = 0;
 	
 	// Configure pins as analog inputs
-    ANSELBbits.ANSB1 = 1;   // set RB1 (AN4, pin 5 of DIP28) as analog pin
+    ANSELBbits.ANSB1 = 1;   // set RB1 (AN4, pin 5 of DIP28) as analog pin	
     TRISBbits.TRISB1 = 1;   // set RB1 as an input
+    
+    ANSELBbits.ANSB2 = 1;
+    TRISBbits.TRISB2 = 1;	//set RB2 as input (x direction)
 	
 	ADCConf(); // Configure ADC
 
@@ -271,9 +278,12 @@ void main(void)
 	cnt=0;
 	while(1)
 	{
-		adcval = ADCRead(4); // note that we call pin AN4 (RB2) by it's analog number
-    	voltage=adcval*3.3/1023.0;
-    	printf("AN4=0x%04x, %.3fV\r", adcval, voltage);
+		adcval_y = ADCRead(4); // note that we call pin AN4 (RB2) by it's analog number
+    	voltage_y=adcval_y*3.3/1023.0;
+    	adcval_x = ADCRead(3); 	//reading from AN3 (RB1)
+    	voltage_x = adcval_x*3.3/1023.0;
+    	
+    	printf("AN4=0x%04x, %.3fV AN3 = 0x%04x, %.3fV\r", adcval_y, voltage_y, adcval_x, voltage_x);
     	fflush(stdout); // Makes the printf() above to send without a '\n' at the end
 		t = 0;
 		delayms(200);
