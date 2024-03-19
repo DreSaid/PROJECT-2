@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "ADCtest.h"
 
 /* Pinout for DIP28 PIC32MX130:
                                           --------
@@ -80,6 +81,29 @@ int _mon_getc(int canblock)
     }
 }
 
+
+void ADCConf(void)
+{
+    AD1CON1CLR = 0x8000;    // disable ADC before configuration
+    AD1CON1 = 0x00E0;       // internal counter ends sampling and starts conversion (auto-convert), manual sample
+    AD1CON2 = 0;            // AD1CON2<15:13> set voltage reference to pins AVSS/AVDD
+    AD1CON3 = 0x0f01;       // TAD = 4*TPB, acquisition time = 15*TAD 
+    AD1CON1SET=0x8000;      // Enable ADC
+}
+
+int ADCRead(char analogPIN)
+{
+    AD1CHS = analogPIN << 16;    // AD1CHS<16:19> controls which analog pin goes to the ADC
+ 
+    AD1CON1bits.SAMP = 1;        // Begin sampling
+    while(AD1CON1bits.SAMP);     // wait until acquisition is done
+    while(!AD1CON1bits.DONE);    // wait until conversion done
+ 
+    return ADC1BUF0;             // result stored in ADC1BUF0
+}
+
+
+
 /////////////////////////////////////////////////////////
 // UART1 functions used to communicate with the JDY40  //
 /////////////////////////////////////////////////////////
@@ -100,7 +124,7 @@ int UART1Configure(int desired_baud)
 
 	// Do what the caption of FIGURE 11-2 in '60001168J.pdf' says: "For input only, PPS functionality does not have
     // priority over TRISx settings. Therefore, when configuring RPn pin for input, the corresponding bit in the
-    // TRISx register must also be configured for input (set to ‘1’)."
+    // TRISx register must also be configured for input (set to â€˜1â€™)."
     
     ANSELB &= ~(1<<13); // Set RB13 as a digital I/O
     TRISB |= (1<<13);   // configure pin RB13 as input
@@ -200,9 +224,19 @@ void main(void)
 {
 	char buff[80];
     int cnt=0;
+    volatile unsigned long t=0;
+    int adcval;
+    float voltage;
     
 	DDPCON = 0;
 	CFGCON = 0;
+	
+	// Configure pins as analog inputs
+    ANSELBbits.ANSB1 = 1;   // set RB1 (AN4, pin 5 of DIP28) as analog pin
+    TRISBbits.TRISB1 = 1;   // set RB1 as an input
+	
+	ADCConf(); // Configure ADC
+
   
     UART2Configure(115200);  // Configure UART2 for a baud rate of 115200
     UART1Configure(9600);  // Configure UART1 to communicate with JDY40 with a baud rate of 9600
@@ -217,7 +251,7 @@ void main(void)
 
 	// We should select an unique device ID.  The device ID can be a hex
 	// number from 0x0000 to 0xFFFF.  In this case is set to 0xABBA
-	SendATCommand("AT+DVID6969\r\n");  
+/*	SendATCommand("AT+DVID6969\r\n");  
 
 	// To check configuration
 	SendATCommand("AT+VER\r\n");
@@ -226,7 +260,7 @@ void main(void)
 	SendATCommand("AT+DVID\r\n");
 	SendATCommand("AT+RFC\r\n");
 	SendATCommand("AT+POWE\r\n");
-	SendATCommand("AT+CLSS\r\n");
+	SendATCommand("AT+CLSS\r\n");           */
 
     ANSELB &= ~(1<<6); // Set RB6 as a digital I/O
     TRISB |= (1<<6);   // configure pin RB6 as input
@@ -237,6 +271,12 @@ void main(void)
 	cnt=0;
 	while(1)
 	{
+		adcval = ADCRead(4); // note that we call pin AN4 (RB2) by it's analog number
+    	voltage=adcval*3.3/1023.0;
+    	printf("AN4=0x%04x, %.3fV\r", adcval, voltage);
+    	fflush(stdout); // Makes the printf() above to send without a '\n' at the end
+		t = 0;
+		delayms(200);
 		if((PORTB&(1<<6))==0)
 		{
 			sprintf(buff, "JDY40 test %d\r\n", cnt++);
