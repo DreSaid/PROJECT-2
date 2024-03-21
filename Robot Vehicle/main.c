@@ -19,7 +19,7 @@
 //       PA2 -|8       25|- PA15 (Used for RXD of UART2, connects to TXD of JDY40)
 //       PA3 -|9       24|- PA14 (Used for TXD of UART2, connects to RXD of JDY40)
 //       PA4 -|10      23|- PA13 (Used for SET of JDY40)
-//		 PA5 -|11      22|- PA12
+//	 PA5 -|11      22|- PA12
 //       PA6 -|12      21|- PA11
 //pbuttonPA7 -|13      20|- PA10 (Reserved for RXD of UART1)
 //       PB0 -|14      19|- PA9  (Reserved for TXD of UART1)
@@ -79,7 +79,7 @@ int main(void)
 {
 	char buff[80];
 	char x_voltage [80];
-	char buff[80];
+	char y_voltage [80];
     int cnt=0;
 
 	Hardware_Init();
@@ -115,8 +115,10 @@ int main(void)
 		}
 		if(ReceivedBytes2()>0) // Something has arrived
 		{
-			egets2(buff, sizeof(buff)-1);
-			printf("RX: %s", buff);
+			egets2(y_voltage, sizeof(y_voltage)-1);
+			egets2(x_voltage, sizeof(x_voltage)-1);
+			printf("VY: %s", y_voltage);
+			printf("VX: %s", x_voltage);
 		}
 	}
 
