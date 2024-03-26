@@ -124,8 +124,8 @@ int main(void)
 			egets2(x_voltage, sizeof(x_voltage)-1);
 			printf("VY: %s", y_voltage);
 			printf("VX: %s", x_voltage);
-			sscanf(x_voltage, "%lf", VX);
-			sscanf(y_voltage, "%lf", VY);
+			VY=atof(y_voltage);
+			VX=atof(x_voltage);
 			ud=100.0*VX/Vmax;
 			lr=100.0*VY/Vmax;
 			
