@@ -6,6 +6,7 @@
 
 #define SYSCLK 32000000L
 #define DEF_F 15000L
+#define Vmax 3.3
 
 // LQFP32 pinout
 //             ----------
@@ -81,6 +82,10 @@ int main(void)
 	char x_voltage [80];
 	char y_voltage [80];
     int cnt=0;
+    double lr;
+    double ud;
+    double VX=Vmax/2.0;
+    double VY=Vmax/2.0;
 
 	Hardware_Init();
 	initUART2(9600);
@@ -119,6 +124,11 @@ int main(void)
 			egets2(x_voltage, sizeof(x_voltage)-1);
 			printf("VY: %s", y_voltage);
 			printf("VX: %s", x_voltage);
+			sscanf(x_voltage, "%lf", VX);
+			sscanf(y_voltage, "%lf", VY);
+			ud=100.0*VX/Vmax;
+			lr=100.0*VY/Vmax;
+			
 		}
 	}
 
