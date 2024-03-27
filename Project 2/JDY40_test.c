@@ -124,7 +124,7 @@ int UART1Configure(int desired_baud)
 
 	// Do what the caption of FIGURE 11-2 in '60001168J.pdf' says: "For input only, PPS functionality does not have
     // priority over TRISx settings. Therefore, when configuring RPn pin for input, the corresponding bit in the
-    // TRISx register must also be configured for input (set to ‘1’)."
+    // TRISx register must also be configured for input (set to â€˜1â€™)."
     
     ANSELB &= ~(1<<13); // Set RB13 as a digital I/O
     TRISB |= (1<<13);   // configure pin RB13 as input
@@ -290,13 +290,13 @@ void main(void)
     	adcval_x = ADCRead(3); 	//reading from AN3 (RB1)
     	voltage_x = adcval_x*3.3/1023.0;
     	
-    	printf("%.3f\r", voltage_y);
+    	printf("%.3f %0.3f\r", voltage_y, voltage_x);
  //   	fflush(stdout); // Makes the printf() above to send without a '\n' at the end
 		t = 0;
 		
 		if((PORTB&(1<<6))==0)
 		{
-			sprintf(buff, "%fV \r\n", voltage_y);
+			sprintf(buff, "%fV\n %fV \r\n", voltage_y, voltage_x);
 			SerialTransmit1(buff);
 			printf(".");
 			delayms(200);
