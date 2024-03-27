@@ -9,7 +9,7 @@
 #define DEF_F 100000L
 
 volatile int PWM_Counter = 0;
-volatile unsigned char pwm1=100, pwm2=100;
+volatile unsigned char rforward=100, rback=100, lforward=100, lback=100;
 
 // LQFP32 pinout
 //             ----------
@@ -55,28 +55,55 @@ void TIM2_Handler(void)
 	TIM2->SR &= ~BIT0; // clear update interrupt flag
 	PWM_Counter++;
 	
-	if(pwm1>PWM_Counter)
+	if(rforward>PWM_Counter)
 	{
-		GPIOA->ODR |= BIT11;
+		GPIOA->ODR |= BIT1;
+//		GPIOA->ODR |= BIT3;
 	}
 	else
 	{
-		GPIOA->ODR &= ~BIT11;
+		GPIOA->ODR &= ~BIT1;
+//		GPIOA->ODR &= ~BIT3;
 	}
 	
-	if(pwm2>PWM_Counter)
+	if(lforward>PWM_Counter)
 	{
-		GPIOA->ODR |= BIT12;
+//		GPIOA->ODR |= BIT1;
+		GPIOA->ODR |= BIT3;
 	}
 	else
 	{
-		GPIOA->ODR &= ~BIT12;
+//		GPIOA->ODR &= ~BIT1;
+		GPIOA->ODR &= ~BIT3;
+	}
+	
+	if(rback>PWM_Counter)
+	{
+		GPIOA->ODR |= BIT4;
+//		GPIOA->ODR |= BIT2;
+	}
+	else
+	{
+		GPIOA->ODR &= ~BIT4;
+//		GPIOA->ODR &= ~BIT2;
+	}
+	
+	if(lback>PWM_Counter)
+	{
+//		GPIOA->ODR |= BIT4;
+		GPIOA->ODR |= BIT2;
+	}
+	else
+	{
+//		GPIOA->ODR &= ~BIT4;
+		GPIOA->ODR &= ~BIT2;
 	}
 	
 	if (PWM_Counter > 255) // THe period is 20ms
 	{
 		PWM_Counter=0;
-		GPIOA->ODR |= (BIT11|BIT12);
+		GPIOA->ODR |= (BIT4|BIT1);
+		GPIOA->ODR |= (BIT2|BIT3);
 	}   
 }
 
@@ -110,10 +137,15 @@ void Hardware_Init(void)
 	GPIOA->MODER &= ~(BIT14 | BIT15); // Make pin PA8 input
 	// Activate pull up for pin PA8:
 	
-	GPIOA->MODER = (GPIOA->MODER & ~(BIT22|BIT23)) | BIT22; // Make pin PA11 output (page 200 of RM0451, two bits used to configure: bit0=1, bit1=0)
-	GPIOA->OTYPER &= ~BIT11; // Push-pull
-    GPIOA->MODER = (GPIOA->MODER & ~(BIT24|BIT25)) | BIT24; // Make pin PA12 output (page 200 of RM0451, two bits used to configure: bit0=1, bit1=0)
-	GPIOA->OTYPER &= ~BIT12; // Push-pull
+	GPIOA->MODER = (GPIOA->MODER & ~(BIT8|BIT9)) | BIT8; // Make pin PA4 output (page 200 of RM0451, two bits used to configure: bit0=1, bit1=0)
+	GPIOA->OTYPER &= ~BIT4; // Push-pull
+    GPIOA->MODER = (GPIOA->MODER & ~(BIT2|BIT3)) | BIT2; // Make pin PA1 output (page 200 of RM0451, two bits used to configure: bit0=1, bit1=0)
+	GPIOA->OTYPER &= ~BIT1; // Push-pull
+	
+	GPIOA->MODER = (GPIOA->MODER & ~(BIT6|BIT7)) | BIT6; // Make pin PA3 output (page 200 of RM0451, two bits used to configure: bit0=1, bit1=0)
+	GPIOA->OTYPER &= ~BIT3; // Push-pull
+    GPIOA->MODER = (GPIOA->MODER & ~(BIT4|BIT5)) | BIT4; // Make pin PA2 output (page 200 of RM0451, two bits used to configure: bit0=1, bit1=0)
+	GPIOA->OTYPER &= ~BIT2; // Push-pull
 	
 	GPIOA->PUPDR |= BIT14; 
 	GPIOA->PUPDR &= ~(BIT15);
@@ -149,7 +181,9 @@ int main(void)
 	char x_voltage [80];
 	char y_voltage [80];
     int cnt=0;
-    float calc;
+    float calcy;
+    float calcx;
+    float temp;
      char buf[32];
     int npwm;
 
@@ -200,44 +234,56 @@ int main(void)
 		if(ReceivedBytes2()>0) // Something has arrived
 		{
 			egets2(y_voltage, sizeof(y_voltage)-1);
-			calc = atof(y_voltage);
+			egets2(x_voltage, sizeof(x_voltage)-1);
+			calcy = atof(y_voltage);
+			calcx = atof(x_voltage);
+		//	printf("%s , %s\n", x_voltage, y_voltage);
+			if(calcy>=1.65){
+			rforward=1;
+			lforward=1;
+			temp=(calcy-1.65)*136.36;
 			
-			if(calc>=1.65){
-			pwm2=1;
-			calc=(calc-1.65)*136.36;
-			
-			npwm = calc;
+			npwm = calcy;
 			
 		
 		    if(npwm>255) npwm=255;
 		    if(npwm<1) npwm=1;
-		    printf("%i, highmf \n", npwm);
-		    pwm1=npwm;
-	   
-	    
-			}else
-			pwm1=1;
-			calc=(1.65-calc)*136.36;
+		   // printf("%i, highmf \n", npwm);
+	//	   if(calcx>=1.65){
+		   	lforward=npwm;
+		   	
 			
-				npwm = calc;
+		    rforward=npwm;
+		    
+	   printf("\rHIGH, %i, %i, \n", lforward, rforward);
+	   printf("LOW, %i, %i, \n", lback, rback);
+//	    }
+			}else{
+			rforward=1;
+			lforward=1;
+			calcy=(1.65-calcy)*136.36;
+			
+				npwm = calcy;
 			
 			
 
 		    if(npwm>255) npwm=255;
 		    if(npwm<1) npwm=1;
-		    printf("%i, low mf \n ", npwm);
-		    pwm2=npwm;
-	   
-	    
+	//	    printf("%i, low mf \n ", npwm);
+		    rback=npwm;
+	   		lback=npwm;
+	    	printf("\rHIGH, %i, %i, \n", lforward, rforward);
+	   		printf("LOW, %i, %i, \n", lback, rback);
 			//calc=(calc/(3.3-1.66))*255;
 			
 			
 			
 		//	egets2(x_voltage, sizeof(x_voltage)-1);
-			printf("VY: %s", y_voltage);
+		//	printf("VY: %s", y_voltage);
 		//	printf("VX: %s", x_voltage);
 		}
+		
 	}
 
 }
-
+}
