@@ -286,28 +286,45 @@ void main(void)
 	cnt=0;
 	while(1)
 	{
-		putchar('M');
-		
+		//putchar('M');
+				
+		if((PORTB&(1<<6))==0)
+		{
+			//sprintf(buff, "%fV \r\n", voltage_y);
+			sprintf(buff, "M\r\n");
+			printf(buff);
+			SerialTransmit1(buff);
+			//printf(".");
+			delayms(500);
+		} else {
+			sprintf(buff, "23.3\r\n");
+			printf(buff);
+			SerialTransmit1(buff);
+			delayms(500);
+		}
 		timeout_cnt=0;
 		
 		while(1) {
 			if(U1STAbits.URXDA) break; //Got something! get out of loop
 			delayms(1); //check if smth has arrived
 			timeout_cnt++;
-			if(timeout_cnt>=100) break; //timeout after 100 ms
-		
+			if(timeout_cnt>=500) break; //timeout after 100 ms
+			//printf("stuck1");
 		}
+		//printf("UNSTUCK\n");
 		
 		if(U1STAbits.URXDA) // Something has arrived
 		{
+			printf("arrived");
+			delayms(100);
 			SerialReceive1(buff, sizeof(buff)-1);
 			printf("Received_val: %s\r\n", buff);
-
-			if(strlen(buff)==5) //assuming a message from robot is 5 bytes
-			{
-				received_value = atoi(buff);
-				printf(buff);
-			}
+			printf("received\r\n");
+			//if(strlen(buff)==5) //assuming a message from robot is 5 bytes
+			//{
+			//	received_value = atoi(buff);
+			//	printf("%d",received_value);
+			//}
 		}
 	
 		adcval_y = ADCRead(4); // note that we call pin AN4 (RB2) by it's analog number
@@ -315,22 +332,24 @@ void main(void)
     	adcval_x = ADCRead(3); 	//reading from AN3 (RB1)
     	voltage_x = adcval_x*3.3/1023.0;
     	
-    	printf("%.3f\r", voltage_y);
+    	//printf("%.3f\r", voltage_y);
  //   	fflush(stdout); // Makes the printf() above to send without a '\n' at the end
-		t = 0;
+		//t = 0;
 		
-		if((PORTB&(1<<6))==0)
-		{
-			sprintf(buff, "%fV \r\n", voltage_y);
-			SerialTransmit1(buff);
-			printf(".");
-			delayms(200);
-		}
-		if(U1STAbits.URXDA) // Something has arrived
-		{
-			SerialReceive1(buff, sizeof(buff)-1);
-			printf("RX: %s\r\n", buff);
-		}
+		//if((PORTB&(1<<6))==0)
+		//{
+			//sprintf(buff, "%fV \r\n", voltage_y);
+		//	sprintf(buff, "M");
+		//	printf(buff);
+		//	SerialTransmit1(buff);
+		//	printf(".");
+		//	delayms(200);
+		//}
+		//if(U1STAbits.URXDA) // Something has arrived
+		//{
+		//	SerialReceive1(buff, sizeof(buff)-1);
+		//	printf("RX: %s\r\n", buff);
+		//}
 		
 		if(speaker)
 			LATA &= ~(1<<1);
