@@ -32,41 +32,13 @@
  
 #pragma config FWDTEN = OFF         // Watchdog Timer Disabled
 #pragma config FPBDIV = DIV_1       // PBCLK = SYCLK
-#pragma config FSOSCEN = OFF        // Secondary Oscillator Enable (Disabled).  A4 and B4 can used as GPIO.
 
 // Defines
 #define SYSCLK 40000000L
 #define DEF_FREQ 16000L
-#define FREQ 20480L // 2Hz or 0.5 seconds interrupt rate
 #define Baud2BRG(desired_baud)( (SYSCLK / (16*desired_baud))-1)
 #define Baud1BRG(desired_baud)( (SYSCLK / (16*desired_baud))-1)
-
-
-void __ISR(_TIMER_1_VECTOR, IPL5SOFT) Timer1_Handler(void)
-{
-	LATAbits.LATA1 = !LATAbits.LATA1; // Blink led on RB6
-	IFS0CLR = _IFS0_T1IF_MASK; // Clear timer 1 interrupt flag, bit 4 of IFS0
-}
-
-void SetupTimer1 (void)
-{
-	// Explanation here:
-	// https://www.youtube.com/watch?v=bu6TTZHnMPY
-	__builtin_disable_interrupts();
-	PR1 =(SYSCLK/(FREQ*256))-1; // since SYSCLK/FREQ = PS*(PR1+1)
-	TMR1 = 0;
-	T1CONbits.TCKPS = 3; // Pre-scaler: 256
-	T1CONbits.TCS = 0; // Clock source
-	T1CONbits.ON = 1;
-	IPC1bits.T1IP = 5;
-	IPC1bits.T1IS = 0;
-	IFS0bits.T1IF = 0;
-	IEC0bits.T1IE = 1;
-	
-	INTCONbits.MVEC = 1; //Int multi-vector
-	__builtin_enable_interrupts();
-}
-
+ 
 void UART2Configure(int baud_rate)
 {
     // Peripheral Pin Select
@@ -79,7 +51,6 @@ void UART2Configure(int baud_rate)
     
     U2MODESET = 0x8000;     // enable UART2
 }
-
 
 // Needed to by scanf() and gets()
 int _mon_getc(int canblock)
@@ -153,7 +124,7 @@ int UART1Configure(int desired_baud)
 
 	// Do what the caption of FIGURE 11-2 in '60001168J.pdf' says: "For input only, PPS functionality does not have
     // priority over TRISx settings. Therefore, when configuring RPn pin for input, the corresponding bit in the
-    // TRISx register must also be configured for input (set to â€˜1â€™)."
+    // TRISx register must also be configured for input (set to ‘1’)."
     
     ANSELB &= ~(1<<13); // Set RB13 as a digital I/O
     TRISB |= (1<<13);   // configure pin RB13 as input
@@ -260,16 +231,13 @@ void main(void)
     float voltage_y;
     int adcval_x;
     int adcval_y;
+    int speaker = 1;
+    
+    
+ 	
     
 	DDPCON = 0;
 	CFGCON = 0;
-	
-	ANSELAbits.ANSA1 = 0; // Disable analog function on RA1
-    TRISAbits.TRISA1 = 0; // Set RA1 as output
-    LATAbits.LATA1 = 0;   // Initialize RA1 to low
-    
-    INTCONbits.MVEC = 1; // Enable multi-vector interrupts
-	SetupTimer1();
 	
 	// Configure pins as analog inputs
     ANSELBbits.ANSB1 = 1;   // set RB1 (AN4, pin 5 of DIP28) as analog pin	
@@ -308,6 +276,9 @@ void main(void)
     ANSELB &= ~(1<<6); // Set RB6 as a digital I/O
     TRISB |= (1<<6);   // configure pin RB6 as input
     CNPUB |= (1<<6);   // Enable pull-up resistor for RB6
+    
+    ANSELA &= ~(1<<1);	//Set RA1 as a digital I/O
+    TRISA &= ~(1<<1); 	//configure pin RA1 as output (speaker)
  	
 	printf("\r\nPress and hold a push-button attached to RB6 (pin 15) to transmit.\r\n");
 	
@@ -319,13 +290,13 @@ void main(void)
     	adcval_x = ADCRead(3); 	//reading from AN3 (RB1)
     	voltage_x = adcval_x*3.3/1023.0;
     	
-    	printf("AN4=0x%04x, %.3fV AN3 = 0x%04x, %.3fV\r", adcval_y, voltage_y, adcval_x, voltage_x);
+    	printf("%.3f\r", voltage_y);
  //   	fflush(stdout); // Makes the printf() above to send without a '\n' at the end
 		t = 0;
 		
 		if((PORTB&(1<<6))==0)
 		{
-			sprintf(buff, "f/b %f  r/l %f\r\n", voltage_y, voltage_x);
+			sprintf(buff, "%fV \r\n", voltage_y);
 			SerialTransmit1(buff);
 			printf(".");
 			delayms(200);
@@ -335,5 +306,9 @@ void main(void)
 			SerialReceive1(buff, sizeof(buff)-1);
 			printf("RX: %s\r\n", buff);
 		}
+		
+		if(speaker)
+			LATA &= ~(1<<1);
+		
 	}
 }
