@@ -4,9 +4,12 @@
 #include "../Common/Include/serial.h"
 #include "UART2.h"
 
+#define F_CPU 32000000L
 #define SYSCLK 32000000L
-#define DEF_F 15000L
-#define Vmax 3.3
+#define DEF_F 100000L
+
+volatile int PWM_Counter = 0;
+volatile unsigned char pwm1=100, pwm2=100;
 
 // LQFP32 pinout
 //             ----------
@@ -40,6 +43,53 @@ void Delay_us(unsigned char us)
 	SysTick->CTRL = 0x00; // Disable Systick counter
 }
 
+
+
+// Interrupt service routines are the same as normal
+// subroutines (or C funtions) in Cortex-M microcontrollers.
+// The following should happen at a rate of 1kHz.
+// The following function is associated with the TIM2 interrupt 
+// via the interrupt vector table defined in startup.c
+void TIM2_Handler(void) 
+{
+	TIM2->SR &= ~BIT0; // clear update interrupt flag
+	PWM_Counter++;
+	
+	if(pwm1>PWM_Counter)
+	{
+		GPIOA->ODR |= BIT11;
+	}
+	else
+	{
+		GPIOA->ODR &= ~BIT11;
+	}
+	
+	if(pwm2>PWM_Counter)
+	{
+		GPIOA->ODR |= BIT12;
+	}
+	else
+	{
+		GPIOA->ODR &= ~BIT12;
+	}
+	
+	if (PWM_Counter > 255) // THe period is 20ms
+	{
+		PWM_Counter=0;
+		GPIOA->ODR |= (BIT11|BIT12);
+	}   
+}
+
+void wait_1ms(void)
+{
+	// For SysTick info check the STM32l0xxx Cortex-M0 programming manual.
+	SysTick->LOAD = (F_CPU/1000L) - 1;  // set reload register, counter rolls over from zero, hence -1
+	SysTick->VAL = 0; // load the SysTick counter
+	SysTick->CTRL  = SysTick_CTRL_CLKSOURCE_Msk | SysTick_CTRL_ENABLE_Msk; // Enable SysTick IRQ and SysTick Timer */
+	while((SysTick->CTRL & BIT16)==0); // Bit 16 is the COUNTFLAG.  True when counter rolls over from zero.
+	SysTick->CTRL = 0x00; // Disable Systick counter
+}
+
 void waitms (unsigned int ms)
 {
 	unsigned int j;
@@ -59,8 +109,25 @@ void Hardware_Init(void)
 
 	GPIOA->MODER &= ~(BIT14 | BIT15); // Make pin PA8 input
 	// Activate pull up for pin PA8:
+	
+	GPIOA->MODER = (GPIOA->MODER & ~(BIT22|BIT23)) | BIT22; // Make pin PA11 output (page 200 of RM0451, two bits used to configure: bit0=1, bit1=0)
+	GPIOA->OTYPER &= ~BIT11; // Push-pull
+    GPIOA->MODER = (GPIOA->MODER & ~(BIT24|BIT25)) | BIT24; // Make pin PA12 output (page 200 of RM0451, two bits used to configure: bit0=1, bit1=0)
+	GPIOA->OTYPER &= ~BIT12; // Push-pull
+	
 	GPIOA->PUPDR |= BIT14; 
 	GPIOA->PUPDR &= ~(BIT15);
+	
+	// Set up timer
+	RCC->APB1ENR |= BIT0;  // turn on clock for timer2 (UM: page 177)
+	TIM2->ARR = F_CPU/DEF_F-1;
+	NVIC->ISER[0] |= BIT15; // enable timer 2 interrupts in the NVIC
+	TIM2->CR1 |= BIT4;      // Downcounting    
+	TIM2->CR1 |= BIT7;      // ARPE enable    
+	TIM2->DIER |= BIT0;     // enable update event (reload event) interrupt 
+	TIM2->CR1 |= BIT0;      // enable counting    
+	
+	__enable_irq();
 }
 
 void SendATCommand (char * s)
@@ -82,10 +149,10 @@ int main(void)
 	char x_voltage [80];
 	char y_voltage [80];
     int cnt=0;
-    double lr;
-    double ud;
-    double VX=Vmax/2.0;
-    double VY=Vmax/2.0;
+    float calc;
+     char buf[32];
+    int npwm;
+
 
 	Hardware_Init();
 	initUART2(9600);
@@ -111,6 +178,18 @@ int main(void)
 	cnt=0;
 	while(1)
 	{
+	//	printf("PWM1 (60 to 255): ");
+    //	fflush(stdout);
+   // 	egets_echo(buf, 31); // wait here until data is received
+  	//	printf("\r\n");
+	    
+	    
+   // 	printf("PWM2 (60 to 255): ");
+    //	fflush(stdout);
+    //	egets_echo(buf, 31); // wait here until data is received
+ 	//	printf("\r\n");
+ 
+
 		if((GPIOA->IDR&BIT7)==0)
 		{
 			sprintf(buff, "JDY40 test %d\n", cnt++);
@@ -121,15 +200,44 @@ int main(void)
 		if(ReceivedBytes2()>0) // Something has arrived
 		{
 			egets2(y_voltage, sizeof(y_voltage)-1);
-			egets2(x_voltage, sizeof(x_voltage)-1);
-			printf("VY: %s", y_voltage);
-			printf("VX: %s", x_voltage);
-			VY=atof(y_voltage);
-			VX=atof(x_voltage);
-			ud=100.0*VX/Vmax;
-			lr=100.0*VY/Vmax;
+			calc = atof(y_voltage);
 			
+			if(calc>=1.65){
+			pwm2=1;
+			calc=(calc-1.65)*136.36;
+			
+			npwm = calc;
+			
+		
+		    if(npwm>255) npwm=255;
+		    if(npwm<1) npwm=1;
+		    printf("%i, highmf \n", npwm);
+		    pwm1=npwm;
+	   
+	    
+			}else
+			pwm1=1;
+			calc=(1.65-calc)*136.36;
+			
+				npwm = calc;
+			
+			
+
+		    if(npwm>255) npwm=255;
+		    if(npwm<1) npwm=1;
+		    printf("%i, low mf \n ", npwm);
+		    pwm2=npwm;
+	   
+	    
+			//calc=(calc/(3.3-1.66))*255;
+			
+			
+			
+		//	egets2(x_voltage, sizeof(x_voltage)-1);
+			printf("VY: %s", y_voltage);
+		//	printf("VX: %s", x_voltage);
 		}
 	}
 
 }
+
