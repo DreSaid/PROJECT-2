@@ -39,6 +39,9 @@
 #define DEF_FREQ 16000L
 #define Baud2BRG(desired_baud)( (SYSCLK / (16*desired_baud))-1)
 #define Baud1BRG(desired_baud)( (SYSCLK / (16*desired_baud))-1)
+
+void wait_1us(void);
+void delayus(int);
  
 void UART2Configure(int baud_rate)
 {
@@ -172,11 +175,22 @@ int SerialTransmit1(const char *buffer)
 unsigned int SerialReceive1(char *buffer, unsigned int max_size)
 {
     unsigned int num_char = 0;
- 
+ 	int timeout_counter;
  
     while(num_char < max_size)
     {
-        while( !U1STAbits.URXDA);   // wait until data available in RX buffer
+    	timeout_counter=0;
+        while( !U1STAbits.URXDA)
+        {
+        	delayus(100);
+        	timeout_counter++;
+        	if(timeout_counter==100)
+        	{
+        		printf("TIMEOUT");
+        		*buffer = '\0';
+        		return num_char;
+        	}
+        }   // wait until data available in RX buffer
         *buffer = U1RXREG;          // empty contents of RX buffer into *buffer pointer
  
         // insert nul character to indicate end of string
@@ -201,6 +215,20 @@ void wait_1ms(void)
 
     // get the core timer count
     while ( _CP0_GET_COUNT() < (SYSCLK/(2*1000)) );
+}
+
+void wait_1us(void)
+{
+    unsigned int ui;
+    _CP0_SET_COUNT(0); // resets the core timer count
+
+    // get the core timer count
+    while ( _CP0_GET_COUNT() < (SYSCLK/(2*1000000)) );
+}
+
+void delayus(int len)
+{
+	while(len--) wait_1us();
 }
 
 void delayms(int len)
@@ -263,7 +291,7 @@ void main(void)
 
 	// We should select an unique device ID.  The device ID can be a hex
 	// number from 0x0000 to 0xFFFF.  In this case is set to 0xABBA
-	SendATCommand("AT+DVID6969\r\n");  
+	SendATCommand("AT+DVID6058\r\n");  
 
 	// To check configuration
 	SendATCommand("AT+VER\r\n");
@@ -292,39 +320,41 @@ void main(void)
 		{
 			//sprintf(buff, "%fV \r\n", voltage_y);
 			sprintf(buff, "M\r\n");
-			printf(buff);
+			//printf(buff);
 			SerialTransmit1(buff);
 			//printf(".");
-			delayms(500);
+			delayms(10);
 		} else {
 			sprintf(buff, "23.3\r\n");
 			printf(buff);
 			SerialTransmit1(buff);
-			delayms(500);
+			delayms(10);
 		}
 		timeout_cnt=0;
 		
 		while(1) {
 			if(U1STAbits.URXDA) break; //Got something! get out of loop
-			delayms(1); //check if smth has arrived
+			delayus(100); //check if smth has arrived
 			timeout_cnt++;
-			if(timeout_cnt>=500) break; //timeout after 100 ms
+			if(timeout_cnt>=100) break; //timeout after 10 ms
 			//printf("stuck1");
 		}
 		//printf("UNSTUCK\n");
 		
 		if(U1STAbits.URXDA) // Something has arrived
 		{
-			printf("arrived");
-			delayms(100);
+			//printf("arrived");
+			//delayms(100);
 			SerialReceive1(buff, sizeof(buff)-1);
-			printf("Received_val: %s\r\n", buff);
-			printf("received\r\n");
-			//if(strlen(buff)==5) //assuming a message from robot is 5 bytes
-			//{
-			//	received_value = atoi(buff);
-			//	printf("%d",received_value);
-			//}
+			//printf("Received_val: %s\r\n", buff);
+			//printf("received\r\n");
+			if(strlen(buff)==5) //assuming a message from robot is 5 bytes
+			{
+				//printf("in\n");
+				received_value = atoi(buff);
+				printf("%d\r\n",received_value);
+
+			}
 		}
 	
 		adcval_y = ADCRead(4); // note that we call pin AN4 (RB2) by it's analog number
