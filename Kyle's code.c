@@ -289,6 +289,9 @@ void main(void)
     int a;
     int speaker = 1;
     int timeout;
+    int cnt=0;
+    int timeout_cnt = 0;
+    int received_value; //this is a TESTING variable
     
     
  	
