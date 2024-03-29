@@ -3,13 +3,15 @@
 #include <stdlib.h>
 #include "../Common/Include/serial.h"
 #include "UART2.h"
+#include <math.h>
+#include <string.h>
 
 #define F_CPU 32000000L
 #define SYSCLK 32000000L
 #define DEF_F 100000L
 
 volatile int PWM_Counter = 0;
-volatile unsigned char rforward=100, rback=100, lforward=100, lback=100;
+volatile unsigned char rightf_pwm=0, rightb_pwm=0, leftf_pwm=0, leftb_pwm=0;
 
 // LQFP32 pinout
 //             ----------
@@ -55,7 +57,7 @@ void TIM2_Handler(void)
 	TIM2->SR &= ~BIT0; // clear update interrupt flag
 	PWM_Counter++;
 	
-	if(rforward>PWM_Counter)
+	if(rightf_pwm>PWM_Counter)
 	{
 		GPIOA->ODR |= BIT1;
 //		GPIOA->ODR |= BIT3;
@@ -66,7 +68,7 @@ void TIM2_Handler(void)
 //		GPIOA->ODR &= ~BIT3;
 	}
 	
-	if(lforward>PWM_Counter)
+	if(leftf_pwm>PWM_Counter)
 	{
 //		GPIOA->ODR |= BIT1;
 		GPIOA->ODR |= BIT3;
@@ -77,7 +79,7 @@ void TIM2_Handler(void)
 		GPIOA->ODR &= ~BIT3;
 	}
 	
-	if(rback>PWM_Counter)
+	if(rightb_pwm>PWM_Counter)
 	{
 		GPIOA->ODR |= BIT4;
 //		GPIOA->ODR |= BIT2;
@@ -88,7 +90,7 @@ void TIM2_Handler(void)
 //		GPIOA->ODR &= ~BIT2;
 	}
 	
-	if(lback>PWM_Counter)
+	if(leftb_pwm>PWM_Counter)
 	{
 //		GPIOA->ODR |= BIT4;
 		GPIOA->ODR |= BIT2;
@@ -180,12 +182,23 @@ int main(void)
 	char buff[80];
 	char x_voltage [80];
 	char y_voltage [80];
+	char metal_test [80];
     int cnt=0;
-    float calcy;
-    float calcx;
+    float y_volts;
+    float x_volts;
+    float norm_volts;
     float temp;
-     char buf[32];
+    char buf[32];
     int npwm;
+    float x_check=0;
+    float y_check=0;
+    //float rightf_pwm;
+    //float leftf_pwm;
+    //float rightb_pwm;
+    //float leftb_pwm;
+    float y_power;
+    float x_power;
+    float power;
 
 
 	Hardware_Init();
@@ -214,11 +227,11 @@ int main(void)
 	{
 	//	printf("PWM1 (60 to 255): ");
     //	fflush(stdout);
-   // 	egets_echo(buf, 31); // wait here until data is received
+    //	egets_echo(buf, 31); // wait here until data is received
   	//	printf("\r\n");
 	    
 	    
-   // 	printf("PWM2 (60 to 255): ");
+    //	printf("PWM2 (60 to 255): ");
     //	fflush(stdout);
     //	egets_echo(buf, 31); // wait here until data is received
  	//	printf("\r\n");
@@ -231,59 +244,134 @@ int main(void)
 			eputc('.');
 			waitms(200);
 		}
+		
 		if(ReceivedBytes2()>0) // Something has arrived
 		{
-			egets2(y_voltage, sizeof(y_voltage)-1);
-			egets2(x_voltage, sizeof(x_voltage)-1);
-			calcy = atof(y_voltage);
-			calcx = atof(x_voltage);
-		//	printf("%s , %s\n", x_voltage, y_voltage);
-			if(calcy>=1.65){
-			rforward=1;
-			lforward=1;
-			temp=(calcy-1.65)*136.36;
-			
-			npwm = calcy;
-			
-		
-		    if(npwm>255) npwm=255;
-		    if(npwm<1) npwm=1;
-		   // printf("%i, highmf \n", npwm);
-	//	   if(calcx>=1.65){
-		   	lforward=npwm;
-		   	
-			
-		    rforward=npwm;
-		    
-	   printf("\rHIGH, %i, %i, \n", lforward, rforward);
-	   printf("LOW, %i, %i, \n", lback, rback);
-//	    }
-			}else{
-			rforward=1;
-			lforward=1;
-			calcy=(1.65-calcy)*136.36;
-			
-				npwm = calcy;
 			
 			
-
-		    if(npwm>255) npwm=255;
-		    if(npwm<1) npwm=1;
-	//	    printf("%i, low mf \n ", npwm);
-		    rback=npwm;
-	   		lback=npwm;
-	    	printf("\rHIGH, %i, %i, \n", lforward, rforward);
-	   		printf("LOW, %i, %i, \n", lback, rback);
-			//calc=(calc/(3.3-1.66))*255;
+				egets2(y_voltage, sizeof(y_voltage)-1);
+				egets2(x_voltage, sizeof(x_voltage)-1);
+				
+				printf("Y%s\n\rX%s\n\r",y_voltage,x_voltage);
+				printf("Y%i\n\rX%i\n\r", strlen(y_voltage), strlen(x_voltage));
+				
+				if(y_voltage[0] == 'M')
+				{
+					if((strlen(x_voltage) == 7) && (strlen(y_voltage) == 7))
+					{
+						if(((atof(x_voltage)<=3.4) && (atof(x_voltage)>=0)) && ((atof(y_voltage)<=3.4) && (atof(y_voltage)>=0)))
+						{			
+							x_volts = atof(x_voltage);
+							y_volts = atof(y_voltage + 1);
+							
+							//eputs2("%f", metal_reading);
+						}
+					}
+				}
+				else
+				{
+					if((strlen(x_voltage) == 7) && (strlen(y_voltage) == 6))
+					{
+						if(((atof(x_voltage)<=3.4) && (atof(x_voltage)>=0)) && ((atof(y_voltage)<=3.4) && (atof(y_voltage)>=0)))
+						{			
+							x_volts = atof(x_voltage);
+							y_volts = atof(y_voltage);
+						}
+					}
+				}
+				
+				//x_volts = atof(x_voltage);
+				//y_volts = atof(y_voltage);
+				
+				//printf("%s, %f\n\r", x_voltage, y_voltage);
+				//printf("%f, %f\n\r", x_volts, y_volts);
+					
+			//	printf("Y%s\n\rX%s\n\r",y_voltage,x_voltage);
+			//	printf("\n%f, %f, %f, %f\r", y_volts, y_check, x_volts, x_check);
+				//printf("X: %i, Y: %i\r", x_volts,y_volts);
+				
+				//x_volts = 1.65;
+				//y_volts = 3.3;
+				
+				y_power = (y_volts-1.65)*154.54;
+				x_power = (x_volts-1.65)*154.54;
+				
+				if(abs(x_power) <= abs(y_power))
+				{
+					power = abs(y_power);
+				}
+				else
+				{
+					power = abs(x_power);
+				}
+				
+				if (x_volts < 1.62) 
+				{
+			    	//Thumbstick is moved to the left
+			    	if(y_power >= -0.02)
+			    	{
+			    		leftb_pwm = 0;
+			        	rightb_pwm = 0;
+				    	rightf_pwm = power;
+					    leftf_pwm = (x_volts * (power) / 1.65); 
+					}
+					else
+					{
+						leftf_pwm = 0;
+			        	rightf_pwm = 0;
+						rightb_pwm = power;
+					    leftb_pwm = (x_volts * (power) / 1.65); 
+					}
+			    }
+			    else if ( x_volts > 1.67 ) 
+			    {
+			        // Thumbstick is moved to the right
+			        if(y_power >= -0.02)
+			        {
+			        	leftb_pwm = 0;
+			        	rightb_pwm = 0;
+				        leftf_pwm = power;
+					    rightf_pwm = power - ((x_volts-1.65) * (power) / 1.65);
+					}
+					else
+					{
+						leftf_pwm = 0;
+			        	rightf_pwm = 0;
+						leftb_pwm = power;
+					    rightb_pwm = power - ((x_volts-1.65) * (power) / 1.65); 
+					}
+			    }
+			    else if ((1.62 <= x_volts && x_volts <= 1.67) && (1.62 <= y_volts && y_volts <= 1.67))
+			    {
+			        // Thumbstick is in the middle, stop both motors
+			        leftf_pwm = 0;
+			        rightf_pwm = 0;
+			        leftb_pwm = 0;
+			        rightb_pwm = 0;
+			    }
+			    else 
+			    {
+			    	if(y_power >= -0.02)
+			        {
+			        	leftb_pwm = 0;
+			        	rightb_pwm = 0;
+				    	leftf_pwm = power;
+				    	rightf_pwm = power;
+				    }
+				    else
+				    {
+				    	leftf_pwm = 0;
+			        	rightf_pwm = 0;
+				    	leftb_pwm = power;
+				    	rightb_pwm = power;
+				    }
+			    }
 			
-			
-			
-		//	egets2(x_voltage, sizeof(x_voltage)-1);
-		//	printf("VY: %s", y_voltage);
-		//	printf("VX: %s", x_voltage);
 		}
+			   //printf("\rHIGH, %i, %i, \n", leftf_pwm, rightf_pwm);
+			   //printf("LOW, %i, %i, \n", leftb_pwm, rightb_pwm);
+		
 		
 	}
 
-}
 }
