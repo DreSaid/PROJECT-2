@@ -387,9 +387,20 @@ void main(void)
 			if(timeout_cnt>=100) break; //timeout after 10 ms
 			//printf("stuck1");
 		}
-//		timeout++;
-//		}
-//		a=0;
+		if(U1STAbits.URXDA) {// Something has arrived
+			//printf("arrived");
+			//delayms(100);
+			SerialReceive1(buff, sizeof(buff)-1);
+			//printf("Received_val: %s\r\n", buff);
+			//printf("received\r\n");
+			if(strlen(buff)==5) //assuming a message from robot is 5 bytes
+			{
+				//printf("in\n");
+				received_value = atoi(buff);
+				printf("%d\r\n",received_value);
+
+			}
+		}
 		if(speaker)
 			LATA &= ~(1<<1);
 		
