@@ -332,13 +332,14 @@ void main(void)
 		t = 0;
 		a=0;
 		
-		sprintf(buff, "%f\n%f\n\r", voltage_y, voltage_x);
+		sprintf(buff, "%.3f\n%.3f\r\n", voltage_y, voltage_x);
+		printf("%d", strlen(buff));
 		printf("line %s\n", buff);
 		SerialTransmit1(buff);
 		
 	//	fflush(stdout);
 		
-		delayms(600);	
+		delayms(20);	
 			
 		
 		if((PORTB&(1<<6))==0)
