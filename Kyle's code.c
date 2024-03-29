@@ -39,7 +39,10 @@
 #define Baud2BRG(desired_baud)( (SYSCLK / (16*desired_baud))-1)
 #define Baud1BRG(desired_baud)( (SYSCLK / (16*desired_baud))-1)
 #define FREQ 2048L // 2Hz or 0.5 seconds interrupt rate
- 
+
+void wait_1us(void);
+void delayus(int);
+
 void UART2Configure(int baud_rate)
 {
     // Peripheral Pin Select
@@ -198,11 +201,22 @@ int SerialTransmit1(const char *buffer)
 unsigned int SerialReceive1(char *buffer, unsigned int max_size)
 {
     unsigned int num_char = 0;
- 
+ 	int timeout_counter;
  
     while(num_char < max_size)
     {
-        while( !U1STAbits.URXDA);   // wait until data available in RX buffer
+    	timeout_counter=0;
+        while( !U1STAbits.URXDA)
+        {
+        	delayus(100);
+        	timeout_counter++;
+        	if(timeout_counter==100)
+        	{
+        		printf("TIMEOUT");
+        		*buffer = '\0';
+        		return num_char;
+        	}
+        }   // wait until data available in RX buffer
         *buffer = U1RXREG;          // empty contents of RX buffer into *buffer pointer
  
         // insert nul character to indicate end of string
@@ -232,6 +246,20 @@ void wait_1ms(void)
 void delayms(int len)
 {
 	while(len--) wait_1ms();
+}
+
+void wait_1us(void)
+{
+    unsigned int ui;
+    _CP0_SET_COUNT(0); // resets the core timer count
+
+    // get the core timer count
+    while ( _CP0_GET_COUNT() < (SYSCLK/(2*1000000)) );
+}
+
+void delayus(int len)
+{
+	while(len--) wait_1us();
 }
 
 void SendATCommand (char * s)
@@ -344,18 +372,18 @@ void main(void)
 		
 		if((PORTB&(1<<6))==0)
 		{
-		sprintf(buff, "Fluffy Bunnies\r\n");	
+		sprintf(buff, "M\r\n");	
 		SerialTransmit1(buff);
 	
-		delayms(200);	
+		delayms(10);	
 			
 		}
-//		while(a==0||timeout>=4){
-		if(U1STAbits.URXDA){ // Something has arrived
-		
-			SerialReceive1(buff, sizeof(buff)-1);
-			printf("RX: %s\r\n", buff);
-//			a=1;
+		while(1) {
+			if(U1STAbits.URXDA) break; //Got something! get out of loop
+			delayus(100); //check if smth has arrived
+			timeout_cnt++;
+			if(timeout_cnt>=100) break; //timeout after 10 ms
+			//printf("stuck1");
 		}
 //		timeout++;
 //		}
