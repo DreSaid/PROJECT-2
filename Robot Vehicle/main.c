@@ -179,26 +179,21 @@ void SendATCommand (char * s)
 
 int main(void)
 {
-	char buff[80];
 	char x_voltage [80];
 	char y_voltage [80];
-	char metal_test [80];
-    int cnt=0;
-    float y_volts;
+	float y_volts;
     float x_volts;
-    float norm_volts;
-    float temp;
-    char buf[32];
-    int npwm;
-    float x_check=0;
-    float y_check=0;
-    //float rightf_pwm;
-    //float leftf_pwm;
-    //float rightb_pwm;
-    //float leftb_pwm;
+	
     float y_power;
     float x_power;
     float power;
+	
+	char metal_reading [80];
+	float metal;
+	
+    int cnt=0;
+    float temp;
+    char buff[80];
 
 
 	Hardware_Init();
@@ -264,7 +259,8 @@ int main(void)
 							x_volts = atof(x_voltage);
 							y_volts = atof(y_voltage + 1);
 							
-							//eputs2("%f", metal_reading);
+							//sprintf(metal_reading
+							//eputs2(metal_reading);
 						}
 					}
 				}
