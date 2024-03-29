@@ -3,8 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "ADCtest.h"
-#include "UART2.h"
+
 
 /* Pinout for DIP28 PIC32MX130:
                                           --------
@@ -33,16 +32,17 @@
  
 #pragma config FWDTEN = OFF         // Watchdog Timer Disabled
 #pragma config FPBDIV = DIV_1       // PBCLK = SYCLK
-
+#pragma config FSOSCEN = OFF 
 // Defines
 #define SYSCLK 40000000L
 #define DEF_FREQ 16000L
 #define Baud2BRG(desired_baud)( (SYSCLK / (16*desired_baud))-1)
 #define Baud1BRG(desired_baud)( (SYSCLK / (16*desired_baud))-1)
+#define FREQ 2048L // 2Hz or 0.5 seconds interrupt rate
 
 void wait_1us(void);
 void delayus(int);
- 
+
 void UART2Configure(int baud_rate)
 {
     // Peripheral Pin Select
@@ -55,6 +55,32 @@ void UART2Configure(int baud_rate)
     
     U2MODESET = 0x8000;     // enable UART2
 }
+
+void __ISR(_TIMER_1_VECTOR, IPL5SOFT) Timer1_Handler(void)
+{
+	LATAbits.LATA1 = !LATAbits.LATA1; // Blink led on RB6
+	IFS0CLR = _IFS0_T1IF_MASK; // Clear timer 1 interrupt flag, bit 4 of IFS0
+}
+
+void SetupTimer1 (void)
+{
+	// Explanation here:
+	// https://www.youtube.com/watch?v=bu6TTZHnMPY
+	__builtin_disable_interrupts();
+	PR1 =(SYSCLK/(FREQ*256))-1; // since SYSCLK/FREQ = PS*(PR1+1)
+	TMR1 = 0;
+	T1CONbits.TCKPS = 3; // Pre-scaler: 256
+	T1CONbits.TCS = 0; // Clock source
+	T1CONbits.ON = 1;
+	IPC1bits.T1IP = 5;
+	IPC1bits.T1IS = 0;
+	IFS0bits.T1IF = 0;
+	IEC0bits.T1IE = 1;
+
+	INTCONbits.MVEC = 1; //Int multi-vector
+	__builtin_enable_interrupts();
+}
+
 
 // Needed to by scanf() and gets()
 int _mon_getc(int canblock)
@@ -217,6 +243,11 @@ void wait_1ms(void)
     while ( _CP0_GET_COUNT() < (SYSCLK/(2*1000)) );
 }
 
+void delayms(int len)
+{
+	while(len--) wait_1ms();
+}
+
 void wait_1us(void)
 {
     unsigned int ui;
@@ -229,11 +260,6 @@ void wait_1us(void)
 void delayus(int len)
 {
 	while(len--) wait_1us();
-}
-
-void delayms(int len)
-{
-	while(len--) wait_1ms();
 }
 
 void SendATCommand (char * s)
@@ -260,13 +286,24 @@ void main(void)
     float voltage_y;
     int adcval_x;
     int adcval_y;
+    int a;
     int speaker = 1;
+    int timeout;
     int timeout_cnt = 0;
     int received_value; //this is a TESTING variable
-    int RXU1;
+    
+    
+ 	
     
 	DDPCON = 0;
 	CFGCON = 0;
+	
+	ANSELAbits.ANSA1 = 0; // Disable analog function on RA1
+    TRISAbits.TRISA1 = 0; // Set RA1 as output
+    LATAbits.LATA1 = 0;   // Initialize RA1 to low
+
+    INTCONbits.MVEC = 1; // Enable multi-vector interrupts
+	SetupTimer1();
 	
 	// Configure pins as analog inputs
     ANSELBbits.ANSB1 = 1;   // set RB1 (AN4, pin 5 of DIP28) as analog pin	
@@ -291,7 +328,7 @@ void main(void)
 
 	// We should select an unique device ID.  The device ID can be a hex
 	// number from 0x0000 to 0xFFFF.  In this case is set to 0xABBA
-	SendATCommand("AT+DVID6058\r\n");  
+	SendATCommand("AT+DVID6969\r\n");  
 
 	// To check configuration
 	SendATCommand("AT+VER\r\n");
@@ -314,76 +351,68 @@ void main(void)
 	cnt=0;
 	while(1)
 	{
-		//putchar('M');
-				
+		timeout=0;
 		if((PORTB&(1<<6))==0)
 		{
-			//sprintf(buff, "%fV \r\n", voltage_y);
-			sprintf(buff, "M\r\n");
-			//printf(buff);
-			SerialTransmit1(buff);
-			//printf(".");
-			delayms(10);
-		} else {
-			sprintf(buff, "23.3\r\n");
-			printf(buff);
-			SerialTransmit1(buff);
-			delayms(10);
-		}
-		timeout_cnt=0;
+		adcval_y = ADCRead(4); // note that we call pin AN4 (RB2) by it's analog number
+    	voltage_y=adcval_y*3.3/1023.0;
+    	adcval_x = ADCRead(3); 	//reading from AN3 (RB1)
+    	voltage_x = adcval_x*3.3/1023.0;
 		
+		sprintf(buff, "YM%.3f\nX%.3f\r\n", voltage_y, voltage_x);
+		//printf("%d", strlen(buff));
+		printf("line %s\n", buff);
+		SerialTransmit1(buff);
+		
+		delayms(15);
+	
+
+		timeout_cnt=0;
 		while(1) {
 			if(U1STAbits.URXDA) break; //Got something! get out of loop
 			delayus(100); //check if smth has arrived
 			timeout_cnt++;
 			if(timeout_cnt>=100) break; //timeout after 10 ms
 			//printf("stuck1");
-		}
-		//printf("UNSTUCK\n");
 		
-		if(U1STAbits.URXDA) // Something has arrived
-		{
+		}
+		if(U1STAbits.URXDA) {// Something has arrived
 			//printf("arrived");
 			//delayms(100);
 			SerialReceive1(buff, sizeof(buff)-1);
-			//printf("Received_val: %s\r\n", buff);
+			printf("Received_val: %s\r\n", buff);
 			//printf("received\r\n");
-			if(strlen(buff)==5) //assuming a message from robot is 5 bytes
+			if(strlen(buff)==9) //assuming a message from robot is 5 bytes
 			{
 				//printf("in\n");
 				received_value = atoi(buff);
-				printf("%d\r\n",received_value);
+				//printf("%d\r\n",received_value);
 
 			}
-		}
-	
+		}	
+			
+		} else {
 		adcval_y = ADCRead(4); // note that we call pin AN4 (RB2) by it's analog number
     	voltage_y=adcval_y*3.3/1023.0;
     	adcval_x = ADCRead(3); 	//reading from AN3 (RB1)
     	voltage_x = adcval_x*3.3/1023.0;
     	
-    	//printf("%.3f\r", voltage_y);
- //   	fflush(stdout); // Makes the printf() above to send without a '\n' at the end
-		//t = 0;
+    	sprintf(buff, "Y%.3f\nX%.3f\r\n", voltage_y, voltage_x);
+		//printf("%d", strlen(buff));
+		printf("line %s\n", buff);
+		SerialTransmit1(buff);
 		
-		//if((PORTB&(1<<6))==0)
-		//{
-			//sprintf(buff, "%fV \r\n", voltage_y);
-		//	sprintf(buff, "M");
-		//	printf(buff);
-		//	SerialTransmit1(buff);
-		//	printf(".");
-		//	delayms(200);
-		//}
-		//if(U1STAbits.URXDA) // Something has arrived
-		//{
-		//	SerialReceive1(buff, sizeof(buff)-1);
-		//	printf("RX: %s\r\n", buff);
-		//}
+		delayms(15);
+    	}
+    //	printf("%.3f %.3f\r", voltage_y, voltage_x);
+ 	  	 // Makes the printf() above to send without a '\n' at the end
+	
 		
+		timeout_cnt=0;
+
+
 		if(speaker)
 			LATA &= ~(1<<1);
 		
 	}
 }
-
