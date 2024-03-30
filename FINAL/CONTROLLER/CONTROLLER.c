@@ -154,7 +154,7 @@ int UART1Configure(int desired_baud)
 
 	// Do what the caption of FIGURE 11-2 in '60001168J.pdf' says: "For input only, PPS functionality does not have
     // priority over TRISx settings. Therefore, when configuring RPn pin for input, the corresponding bit in the
-    // TRISx register must also be configured for input (set to ‘1’)."
+    // TRISx register must also be configured for input (set to â€˜1â€™)."
     
     ANSELB &= ~(1<<13); // Set RB13 as a digital I/O
     TRISB |= (1<<13);   // configure pin RB13 as input
@@ -352,55 +352,65 @@ void main(void)
 	while(1)
 	{
 		timeout=0;
+		if((PORTB&(1<<6))==0)
+		{
 		adcval_y = ADCRead(4); // note that we call pin AN4 (RB2) by it's analog number
     	voltage_y=adcval_y*3.3/1023.0;
     	adcval_x = ADCRead(3); 	//reading from AN3 (RB1)
     	voltage_x = adcval_x*3.3/1023.0;
-    	
-    //	printf("%.3f %.3f\r", voltage_y, voltage_x);
- 	  	 // Makes the printf() above to send without a '\n' at the end
-		t = 0;
-		a=0;
 		
-		sprintf(buff, "%.3f\n%.3f\r\n", voltage_y, voltage_x);
-		printf("%d", strlen(buff));
-		printf("line %s\n", buff);
+		sprintf(buff, "YM%.3f\nX%.3f\r\n", voltage_y, voltage_x);
+		//printf("%d", strlen(buff));
+		//printf("line %s\n", buff);
 		SerialTransmit1(buff);
 		
-	//	fflush(stdout);
-		
-		delayms(20);	
-			
-		
-		if((PORTB&(1<<6))==0)
-		{
-		sprintf(buff, "M\r\n");	
-		SerialTransmit1(buff);
+		delayms(15);
 	
-		delayms(10);	
-			
-		}
+
+		timeout_cnt=0;
 		while(1) {
 			if(U1STAbits.URXDA) break; //Got something! get out of loop
 			delayus(100); //check if smth has arrived
 			timeout_cnt++;
 			if(timeout_cnt>=100) break; //timeout after 10 ms
 			//printf("stuck1");
+		
 		}
 		if(U1STAbits.URXDA) {// Something has arrived
-			//printf("arrived");
+			printf("arrived");
 			//delayms(100);
 			SerialReceive1(buff, sizeof(buff)-1);
-			//printf("Received_val: %s\r\n", buff);
+			printf("Received_val: %s\r\n", buff);
 			//printf("received\r\n");
-			if(strlen(buff)==5) //assuming a message from robot is 5 bytes
+			if(strlen(buff)==9) //assuming a message from robot is 5 bytes
 			{
 				//printf("in\n");
 				received_value = atoi(buff);
-				printf("%d\r\n",received_value);
+				//printf("%d\r\n",received_value);
 
 			}
-		}
+		}	
+			
+		} else {
+		adcval_y = ADCRead(4); // note that we call pin AN4 (RB2) by it's analog number
+    	voltage_y=adcval_y*3.3/1023.0;
+    	adcval_x = ADCRead(3); 	//reading from AN3 (RB1)
+    	voltage_x = adcval_x*3.3/1023.0;
+    	
+    	sprintf(buff, "Y%.3f\nX%.3f\r\n", voltage_y, voltage_x);
+		//printf("%d", strlen(buff));
+		printf("line %s\n", buff);
+		SerialTransmit1(buff);
+		
+		delayms(15);
+    	}
+    //	printf("%.3f %.3f\r", voltage_y, voltage_x);
+ 	  	 // Makes the printf() above to send without a '\n' at the end
+	
+		
+		timeout_cnt=0;
+
+
 		if(speaker)
 			LATA &= ~(1<<1);
 		
