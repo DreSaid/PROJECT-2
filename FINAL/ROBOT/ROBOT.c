@@ -25,7 +25,7 @@ volatile unsigned char rightf_pwm=0, rightb_pwm=0, leftf_pwm=0, leftb_pwm=0;
 //       PA2 -|8       25|- PA15 (Used for RXD of UART2, connects to TXD of JDY40)
 //       PA3 -|9       24|- PA14 (Used for TXD of UART2, connects to RXD of JDY40)
 //       PA4 -|10      23|- PA13 (Used for SET of JDY40)
-//	 PA5 -|11      22|- PA12
+//	 	 PA5 -|11      22|- PA12
 //       PA6 -|12      21|- PA11
 //pbuttonPA7 -|13      20|- PA10 (Reserved for RXD of UART1)
 //       PB0 -|14      19|- PA9  (Reserved for TXD of UART1)
@@ -179,8 +179,12 @@ void SendATCommand (char * s)
 
 int main(void)
 {
+	const char intchars[] = "0123456789"; //used for converting ints to strings
 	char x_voltage [80];
 	char y_voltage [80];
+	char temp_v [80];
+	float temp_x;
+	float temp_y;
 	float y_volts;
     float x_volts;
 	
@@ -189,7 +193,9 @@ int main(void)
     float power;
 	
 	char metal_reading [80];
-	float metal;
+	int metal = 555;
+	int metal_digits = 3;
+	int i = 0;
 	
     int cnt=0;
     float temp;
@@ -246,32 +252,61 @@ int main(void)
 			
 				egets2(y_voltage, sizeof(y_voltage)-1);
 				egets2(x_voltage, sizeof(x_voltage)-1);
-				
+				//if(ReceivedBytes2()>0) egets2(buff, sizeof(buff)-1);
 				printf("Y%s\n\rX%s\n\r",y_voltage,x_voltage);
-				printf("Y%i\n\rX%i\n\r", strlen(y_voltage), strlen(x_voltage));
+				//printf("Y%i\n\rX%i\n\r", strlen(y_voltage), strlen(x_voltage));
 				
-				if(y_voltage[0] == 'M')
+				if(y_voltage[0] != 'Y')
 				{
-					if((strlen(x_voltage) == 7) && (strlen(y_voltage) == 7))
+					temp_v = y_voltage;
+					y_voltage = x_voltage;
+					x_voltage = temp_v;
+				}
+						
+				if(y_voltage[1] == 'M')
+				{
+					
+					if((strlen(x_voltage) == 8) && (strlen(y_voltage) == 8))
 					{
-						if(((atof(x_voltage)<=3.4) && (atof(x_voltage)>=0)) && ((atof(y_voltage)<=3.4) && (atof(y_voltage)>=0)))
+					
+						temp_x = atof(x_voltage+1);
+						temp_y = atof(y_voltage+2);
+						
+						if((temp_x<=3.4) && (temp_x>=0)) && (temp_y<=3.4) && (temp_y>=0)))
 						{			
-							x_volts = atof(x_voltage);
-							y_volts = atof(y_voltage + 1);
+							printf("M Recieved");
+							x_volts = atof(x_voltage+1);
+							y_volts = atof(y_voltage + 2);
 							
-							//sprintf(metal_reading
-							//eputs2(metal_reading);
+							//prints metal reading into a string
+							metal_digits = 3;
+							metal = 555;
+							i = 79; //length of metal_reading -1
+							while((metal > 0) | (metal_digits > 0)){
+								metal_reading[i--] = intchars[metal%10];
+								metal/=10;
+								if(metal_digits != 0) metal_digits--;
+							}
+							
+							waitms(10);
+							printf(&metal_reading[i+1]);
+							printf("%i", strlen(&metal_reading[i+1]));
+							eputs2(&metal_reading[i+1]);
+							printf("Metal Sent");
 						}
 					}
 				}
 				else
 				{
-					if((strlen(x_voltage) == 7) && (strlen(y_voltage) == 6))
+					if((strlen(x_voltage) == 8) && (strlen(y_voltage) == 7))
 					{
-						if(((atof(x_voltage)<=3.4) && (atof(x_voltage)>=0)) && ((atof(y_voltage)<=3.4) && (atof(y_voltage)>=0)))
+						temp_x = atof(x_voltage+1);
+						temp_y = atof(y_voltage+1);
+						
+						if((temp_x<=3.4) && (temp_x>=0)) && (temp_y<=3.4) && (temp_y>=0)))
 						{			
-							x_volts = atof(x_voltage);
-							y_volts = atof(y_voltage);
+							x_volts = temp_x;
+							y_volts = temp_y;
 						}
 					}
 				}
