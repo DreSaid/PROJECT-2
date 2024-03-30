@@ -180,9 +180,9 @@ void SendATCommand (char * s)
 int main(void)
 {
 	const char intchars[] = "0123456789"; //used for converting ints to strings
-	char x_voltage [80];
-	char y_voltage [80];
-	char temp_v [80];
+	char x_voltage [40];
+	char y_voltage [40];
+	char temp_v [40];
 	float temp_x;
 	float temp_y;
 	float y_volts;
@@ -192,14 +192,14 @@ int main(void)
     float x_power;
     float power;
 	
-	char metal_reading [80];
+	char metal_reading [40];
 	int metal = 555;
 	int metal_digits = 3;
 	int i = 0;
 	
     int cnt=0;
     float temp;
-    char buff[80];
+    char buff[40];
 
 
 	Hardware_Init();
@@ -258,7 +258,7 @@ int main(void)
 				
 				if(y_voltage[0] != 'Y')
 				{
-					for(int i = 0;i < 79; i++)
+					for(int i = 0;i < 39; i++)
 					{
 						temp_v[i] = y_voltage[i];
 						y_voltage[i] = x_voltage[i];
