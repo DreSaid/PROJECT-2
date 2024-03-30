@@ -258,9 +258,12 @@ int main(void)
 				
 				if(y_voltage[0] != 'Y')
 				{
-					temp_v = y_voltage;
-					y_voltage = x_voltage;
-					x_voltage = temp_v;
+					for(int i = 0;i < 79; i++)
+					{
+						temp_v[i] = y_voltage[i];
+						y_voltage[i] = x_voltage[i];
+						x_voltage[i] = temp_v[i];
+					}
 				}
 						
 				if(y_voltage[1] == 'M')
@@ -271,8 +274,10 @@ int main(void)
 					
 						temp_x = atof(x_voltage+1);
 						temp_y = atof(y_voltage+2);
+						//temp_x = atof(x_voltage);
+						//temp_y = atof(y_voltage+1);
 						
-						if((temp_x<=3.4) && (temp_x>=0)) && (temp_y<=3.4) && (temp_y>=0)))
+						if(((temp_x<=3.4) && (temp_x>=0)) && ((temp_y<=3.4) && (temp_y>=0)))
 						{			
 							printf("M Recieved");
 							x_volts = atof(x_voltage+1);
@@ -302,8 +307,10 @@ int main(void)
 					{
 						temp_x = atof(x_voltage+1);
 						temp_y = atof(y_voltage+1);
+						//temp_x = atof(x_voltage);
+						//temp_y = atof(y_voltage);
 						
-						if((temp_x<=3.4) && (temp_x>=0)) && (temp_y<=3.4) && (temp_y>=0)))
+						if(((temp_x<=3.4) && (temp_x>=0)) && ((temp_y<=3.4) && (temp_y>=0)))
 						{			
 							x_volts = temp_x;
 							y_volts = temp_y;
