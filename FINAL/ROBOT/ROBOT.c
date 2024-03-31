@@ -249,13 +249,14 @@ int main(void)
 		if(ReceivedBytes2()>0) // Something has arrived
 		{
 			
-			
+				//Recieve the Y and X volatges as string from controller
 				egets2(y_voltage, sizeof(y_voltage)-1);
 				egets2(x_voltage, sizeof(x_voltage)-1);
-				//if(ReceivedBytes2()>0) egets2(buff, sizeof(buff)-1);
-				printf("Y%s\n\rX%s\n\r",y_voltage,x_voltage);
-				//printf("Y%i\n\rX%i\n\r", strlen(y_voltage), strlen(x_voltage));
 				
+				//Prints voltage values
+				printf("Y%s\n\rX%s\n\r",y_voltage,x_voltage);
+				
+				//Swaps the strings if X and Y get mixed up
 				if(y_voltage[0] != 'Y')
 				{
 					for(int i = 0;i < 39; i++)
@@ -265,21 +266,27 @@ int main(void)
 						x_voltage[i] = temp_v[i];
 					}
 				}
-						
+				
+				//Tests if there is an M requesting the metal value
 				if(y_voltage[1] == 'M')
 				{
-					
+					//Filter 1: Ignores any strings that are not the correct lengths
 					if((strlen(x_voltage) == 8) && (strlen(y_voltage) == 8))
 					{
-					
+						
+						//Temp variables to test if the values are in the range we are looking for
 						temp_x = atof(x_voltage+1);
 						temp_y = atof(y_voltage+2);
 						//temp_x = atof(x_voltage);
 						//temp_y = atof(y_voltage+1);
 						
+						// Filter 2: Ignores any temp values that are not in the correct range
 						if(((temp_x<=3.4) && (temp_x>=0)) && ((temp_y<=3.4) && (temp_y>=0)))
-						{			
+						{	
+							//If the metal reading is requested		
 							printf("M Recieved");
+							
+							//Sets the actual voltage values after all the filtering is done
 							x_volts = atof(x_voltage+1);
 							y_volts = atof(y_voltage + 2);
 							
@@ -293,6 +300,7 @@ int main(void)
 								if(metal_digits != 0) metal_digits--;
 							}
 							
+							//Sends the metal reading
 							waitms(10);
 							printf(&metal_reading[i+1]);
 							printf("%i", strlen(&metal_reading[i+1]));
@@ -303,13 +311,17 @@ int main(void)
 				}
 				else
 				{
+					//Filter 1: Ignores any strings that are not the correct lengths
 					if((strlen(x_voltage) == 8) && (strlen(y_voltage) == 7))
 					{
+						
+						//Temp variables to test if the values are in the range we are looking for
 						temp_x = atof(x_voltage+1);
 						temp_y = atof(y_voltage+1);
 						//temp_x = atof(x_voltage);
 						//temp_y = atof(y_voltage);
 						
+						// Filter 2: Ignores any temp values that are not in the correct range
 						if(((temp_x<=3.4) && (temp_x>=0)) && ((temp_y<=3.4) && (temp_y>=0)))
 						{			
 							x_volts = temp_x;
@@ -318,22 +330,11 @@ int main(void)
 					}
 				}
 				
-				//x_volts = atof(x_voltage);
-				//y_volts = atof(y_voltage);
-				
-				//printf("%s, %f\n\r", x_voltage, y_voltage);
-				//printf("%f, %f\n\r", x_volts, y_volts);
-					
-			//	printf("Y%s\n\rX%s\n\r",y_voltage,x_voltage);
-			//	printf("\n%f, %f, %f, %f\r", y_volts, y_check, x_volts, x_check);
-				//printf("X: %i, Y: %i\r", x_volts,y_volts);
-				
-				//x_volts = 1.65;
-				//y_volts = 3.3;
-				
+				//Calculate the power we are sending to the wheels
 				y_power = (y_volts-1.65)*154.54;
 				x_power = (x_volts-1.65)*154.54;
 				
+				//If statement to always set the power to the highest of the two values
 				if(abs(x_power) <= abs(y_power))
 				{
 					power = abs(y_power);
@@ -343,9 +344,11 @@ int main(void)
 					power = abs(x_power);
 				}
 				
-				if (x_volts < 1.62) 
+				
+				//Test if we are trying to move left
+				if (x_volts < 1.625) 
 				{
-			    	//Thumbstick is moved to the left
+			    	//Test if we are going forward or backwards
 			    	if(y_power >= -0.02)
 			    	{
 			    		leftb_pwm = 0;
@@ -361,9 +364,10 @@ int main(void)
 					    leftb_pwm = (x_volts * (power) / 1.65); 
 					}
 			    }
-			    else if ( x_volts > 1.67 ) 
+			    //Test if we are moving to the right
+			    else if ( x_volts > 1.655 ) 
 			    {
-			        // Thumbstick is moved to the right
+			        //Test if we are going forward or backwards
 			        if(y_power >= -0.02)
 			        {
 			        	leftb_pwm = 0;
@@ -379,7 +383,8 @@ int main(void)
 					    rightb_pwm = power - ((x_volts-1.65) * (power) / 1.65); 
 					}
 			    }
-			    else if ((1.62 <= x_volts && x_volts <= 1.67) && (1.62 <= y_volts && y_volts <= 1.67))
+			    //Test to see if the thumbstick is in the middle
+			    else if ((1.625 <= x_volts && x_volts <= 1.655) && (1.62 <= y_volts && y_volts <= 1.67))
 			    {
 			        // Thumbstick is in the middle, stop both motors
 			        leftf_pwm = 0;
@@ -387,8 +392,10 @@ int main(void)
 			        leftb_pwm = 0;
 			        rightb_pwm = 0;
 			    }
+			    //Else move fowards or backwards
 			    else 
 			    {
+			    	//Test if we are going forward or backwards
 			    	if(y_power >= -0.02)
 			        {
 			        	leftb_pwm = 0;
