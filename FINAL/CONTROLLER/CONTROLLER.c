@@ -406,9 +406,6 @@ void main(void)
     	}
     //	printf("%.3f %.3f\r", voltage_y, voltage_x);
  	  	 // Makes the printf() above to send without a '\n' at the end
-	
-		
-		timeout_cnt=0;
 
 
 		if(speaker)
