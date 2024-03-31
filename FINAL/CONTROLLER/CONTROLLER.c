@@ -58,7 +58,7 @@ void UART2Configure(int baud_rate)
 
 void __ISR(_TIMER_1_VECTOR, IPL5SOFT) Timer1_Handler(void)
 {
-	LATAbits.LATA1 = !LATAbits.LATA1; // Blink led on RB6
+	LATAbits.LATA1 = !LATAbits.LATA1; // Blink led on RB6/SPEAKER ON RA1
 	IFS0CLR = _IFS0_T1IF_MASK; // Clear timer 1 interrupt flag, bit 4 of IFS0
 }
 
@@ -325,6 +325,11 @@ void main(void)
     ANSELB &= ~(1<<14); // Set RB14 as a digital I/O
     TRISB &= ~(1<<14);  // configure pin RB14 as output
 	LATB |= (1<<14);    // 'SET' pin of JDY40 to 1 is normal operation mode
+	
+	
+	//SPEAKER STUFF
+	TRISAbits.TRISA1 = 0;   // Set RA1 as output
+    LATAbits.LATA1 = 0;     // Ensure RA1 is initially low
 
 	// We should select an unique device ID.  The device ID can be a hex
 	// number from 0x0000 to 0xFFFF.  In this case is set to 0xABBA
@@ -406,7 +411,6 @@ void main(void)
     	}
     //	printf("%.3f %.3f\r", voltage_y, voltage_x);
  	  	 // Makes the printf() above to send without a '\n' at the end
-
 
 		if(speaker)
 			LATA &= ~(1<<1);
