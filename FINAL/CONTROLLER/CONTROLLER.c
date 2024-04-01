@@ -40,6 +40,24 @@
 #define Baud1BRG(desired_baud)( (SYSCLK / (16*desired_baud))-1)
 #define FREQ 2048L // 2Hz or 0.5 seconds interrupt rate
 
+//LCD defines
+#define CHARS_PER_LINE 16
+
+#define LCD_D7_ENABLE TRISAbits.TRISA4
+#define LCD_D6_ENABLE TRISBbits.TRISB4   
+#define LCD_D5_ENABLE TRISAbits.TRISA3   
+#define LCD_D4_ENABLE TRISAbits.TRISA2  
+#define LCD_E_ENABLE  TRISBbits.TRISB3   
+#define LCD_RS_ENABLE TRISAbits.TRISA0
+
+#define LCD_RS LATAbits.LATA0
+#define LCD_E LATBbits.LATB3
+#define LCD_D4 LATAbits.LATA2
+#define LCD_D5 LATAbits.LATA3
+#define LCD_D6 LATBbits.LATB4
+#define LCD_D7 LATAbits.LATA4
+
+
 void wait_1us(void);
 void delayus(int);
 
@@ -262,6 +280,82 @@ void delayus(int len)
 	while(len--) wait_1us();
 }
 
+//LCD CODE//
+void LCD_pulse(void)
+{
+	LCD_E = 1;
+	delayus(40);
+	LCD_E = 0;
+}
+
+void LCD_byte(unsigned char x)
+{
+	LCD_D7=(x&0x80)?1:0;
+	LCD_D6=(x&0x40)?1:0;
+	LCD_D5=(x&0x20)?1:0;
+	LCD_D4=(x&0x10)?1:0;
+	LCD_pulse();
+	delayus(40);
+	LCD_D7=(x&0x08)?1:0;
+	LCD_D6=(x&0x04)?1:0;
+	LCD_D5=(x&0x02)?1:0;
+	LCD_D4=(x&0x01)?1:0;
+	LCD_pulse();
+}
+
+void WriteData(unsigned char x)
+{
+	LCD_RS = 1;
+	LCD_byte(x);
+	delayms(2);
+}
+
+void WriteCommand(unsigned char x)
+{
+	LCD_RS = 0;
+	LCD_byte(x);
+	delayms(5);
+}
+
+void LCD_4BIT(void)
+{
+	// Configure the pins used to communicate with the LCD as outputs
+	LCD_RS_ENABLE = 0;
+	LCD_E_ENABLE = 0;
+	LCD_D4_ENABLE = 0;
+	LCD_D5_ENABLE = 0;
+	LCD_D6_ENABLE = 0;
+	LCD_D7_ENABLE = 0;
+	
+	LCD_E = 0; // Resting state of LCD's enable is zero
+	// LCD_RW = 0; Not used in this code.  Connect to ground.
+	delayms(20);
+	// First make sure the LCD is in 8-bit mdode, then change to 4-bit mode
+	WriteCommand(0x33);
+	WriteCommand(0x33);
+	WriteCommand(0x32); // Change to 4-bit mode
+	
+	// Configure the LCD
+	WriteCommand(0x28);
+	WriteCommand(0x0c);
+	WriteCommand(0x01); // Clear screen command (takes some time)
+	delayms(20); // Wait for clear screen command to finish
+	LATBbits.LATB0 = 	!LATBbits.LATB0;
+}
+
+void LCDprint(char * string, unsigned char line, unsigned char clear)
+{
+	int j;
+	
+	WriteCommand(line==2?0xc0:0x80);
+	delayms(5);
+	for(j=0;string[j]!=0;j++)
+		WriteData(string[j]); //Write the message character by character
+	if(clear)
+		for(;j<CHARS_PER_LINE;j++)
+			WriteData(' '); //Clear the rest of the line if clear is 1
+}
+
 void SendATCommand (char * s)
 {
 	char buff[40];
@@ -304,6 +398,7 @@ void main(void)
 
     INTCONbits.MVEC = 1; // Enable multi-vector interrupts
 	SetupTimer1();
+	LCD_4BIT();
 	
 	// Configure pins as analog inputs
     ANSELBbits.ANSB1 = 1;   // set RB1 (AN4, pin 5 of DIP28) as analog pin	
@@ -354,6 +449,7 @@ void main(void)
 	printf("\r\nPress and hold a push-button attached to RB6 (pin 15) to transmit.\r\n");
 	
 	cnt=0;
+	LCDprint("big n greedy", 1,1);
 	while(1)
 	{
 		timeout=0;
@@ -407,7 +503,7 @@ void main(void)
 		printf("line %s\n", buff);
 		SerialTransmit1(buff);
 		
-		delayms(15);
+		delayms(15);            
     	}
     //	printf("%.3f %.3f\r", voltage_y, voltage_x);
  	  	 // Makes the printf() above to send without a '\n' at the end
