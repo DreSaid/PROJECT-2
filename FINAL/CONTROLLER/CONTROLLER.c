@@ -38,7 +38,7 @@
 #define DEF_FREQ 16000L
 #define Baud2BRG(desired_baud)( (SYSCLK / (16*desired_baud))-1)
 #define Baud1BRG(desired_baud)( (SYSCLK / (16*desired_baud))-1)
-#define FREQ 2048L // 2Hz or 0.5 seconds interrupt rate
+#define BASE_FREQ 2048L // 2Hz or 0.5 seconds interrupt rate
 
 //LCD defines
 #define CHARS_PER_LINE 16
@@ -76,11 +76,11 @@ void UART2Configure(int baud_rate)
 
 void __ISR(_TIMER_1_VECTOR, IPL5SOFT) Timer1_Handler(void)
 {
-	//LATAbits.LATA1 = !LATAbits.LATA1; // Blink led on RB6/SPEAKER ON RA1
+	LATAbits.LATA1 = !LATAbits.LATA1; // Blink led on RB6/SPEAKER ON RA1
 	IFS0CLR = _IFS0_T1IF_MASK; // Clear timer 1 interrupt flag, bit 4 of IFS0
 }
 
-void SetupTimer1 (void)
+void SetupTimer1 (int FREQ)
 {
 	// Explanation here:
 	// https://www.youtube.com/watch?v=bu6TTZHnMPY
@@ -385,6 +385,7 @@ void main(void)
     int timeout;
     int timeout_cnt = 0;
     int received_value; //this is a TESTING variable
+    int freq_change;
     
     
  	
@@ -392,12 +393,12 @@ void main(void)
 	DDPCON = 0;
 	CFGCON = 0;
 	
-	//ANSELAbits.ANSA1 = 0; // Disable analog function on RA1
-    //TRISAbits.TRISA1 = 0; // Set RA1 as output
-    //LATAbits.LATA1 = 0;   // Initialize RA1 to low
+	ANSELAbits.ANSA1 = 0; // Disable analog function on RA1
+    TRISAbits.TRISA1 = 0; // Set RA1 as output
+    LATAbits.LATA1 = 0;   // Initialize RA1 to low
 
     INTCONbits.MVEC = 1; // Enable multi-vector interrupts
-	SetupTimer1();
+	SetupTimer1(BASE_FREQ);
 	LCD_4BIT();
 	
 	// Configure pins as analog inputs
@@ -465,10 +466,8 @@ void main(void)
 		printf("%s\n", buff);
 		SerialTransmit1(buff);
 		//printf("sent");
-		
 		delayms(15);
 	
-
 		timeout_cnt=0;
 		while(1) {
 			if(U1STAbits.URXDA) break; //Got something! get out of loop
@@ -484,13 +483,13 @@ void main(void)
 			printf("Received_val: %s\r\n", buff);
 			delayms(10);
 			//printf("received\r\n");
-			if(strlen(buff)==9) //assuming a message from robot is 5 bytes
-			{
+			//if(strlen(buff)==9) //assuming a message from robot is 5 bytes
+			//{
 				//printf("in\n");
-				received_value = atoi(buff);
-				//printf("%d\r\n",received_value);
+				freq_change = atoi(buff);
+				//printf("%d\r\n",freq_change);
 
-			}
+			//}
 		}	
 			
 		/*} else {
@@ -509,8 +508,21 @@ void main(void)
     	//printf("%.3f %.3f\r", voltage_y, voltage_x);
  	  	 // Makes the printf() above to send without a '\n' at the end
 
-		if(speaker)
-			LATA &= ~(1<<1);	
-	//printf("loop");
+
+		//speaker code
+		freq_change=100;
+		if (freq_change > 160) 
+		{
+			SetupTimer1(freq_change); //(this function also turns speaker on)
+			//WE NEED TO WRITE AN EQUATION FOR THIS PARAMETER, maybe use BASE_FREQ
+		}
+		else
+		{
+			T1CONbits.ON = 0; //speaker off otherwise
+		}
+		
+		//if(speaker)
+		//	LATA &= ~(1<<1);	
+	//printf("loop");   //debugger
 	}
 }
