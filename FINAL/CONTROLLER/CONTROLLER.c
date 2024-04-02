@@ -510,7 +510,7 @@ void main(void)
 
 
 		//speaker code
-		freq_change=100;
+		freq_change=100; //MANUALLY CHANGING FREQ TMRW
 		if (freq_change > 160) 
 		{
 			SetupTimer1(freq_change); //(this function also turns speaker on)
