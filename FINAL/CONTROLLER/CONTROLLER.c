@@ -76,7 +76,7 @@ void UART2Configure(int baud_rate)
 
 void __ISR(_TIMER_1_VECTOR, IPL5SOFT) Timer1_Handler(void)
 {
-	LATAbits.LATA1 = !LATAbits.LATA1; // Blink led on RB6/SPEAKER ON RA1
+	//LATAbits.LATA1 = !LATAbits.LATA1; // Blink led on RB6/SPEAKER ON RA1
 	IFS0CLR = _IFS0_T1IF_MASK; // Clear timer 1 interrupt flag, bit 4 of IFS0
 }
 
@@ -392,17 +392,17 @@ void main(void)
 	DDPCON = 0;
 	CFGCON = 0;
 	
-	ANSELAbits.ANSA1 = 0; // Disable analog function on RA1
-    TRISAbits.TRISA1 = 0; // Set RA1 as output
-    LATAbits.LATA1 = 0;   // Initialize RA1 to low
+	//ANSELAbits.ANSA1 = 0; // Disable analog function on RA1
+    //TRISAbits.TRISA1 = 0; // Set RA1 as output
+    //LATAbits.LATA1 = 0;   // Initialize RA1 to low
 
     INTCONbits.MVEC = 1; // Enable multi-vector interrupts
 	SetupTimer1();
 	LCD_4BIT();
 	
 	// Configure pins as analog inputs
-    ANSELBbits.ANSB1 = 1;   // set RB1 (AN4, pin 5 of DIP28) as analog pin	
-    TRISBbits.TRISB1 = 1;   // set RB1 as an input
+    ANSELBbits.ANSB0 = 1;   // set RB1 (AN4, pin 5 of DIP28) as analog pin	
+    TRISBbits.TRISB0 = 1;   // set RB1 as an input
     
     ANSELBbits.ANSB2 = 1;
     TRISBbits.TRISB2 = 1;	//set RB2 as input (x direction)
@@ -423,8 +423,8 @@ void main(void)
 	
 	
 	//SPEAKER STUFF
-	TRISAbits.TRISA1 = 0;   // Set RA1 as output
-    LATAbits.LATA1 = 0;     // Ensure RA1 is initially low
+	//TRISAbits.TRISA1 = 1;   // Set RA1 as output
+    //LATAbits.LATA1 = 0;     // Ensure RA1 is initially low
 
 	// We should select an unique device ID.  The device ID can be a hex
 	// number from 0x0000 to 0xFFFF.  In this case is set to 0xABBA
@@ -443,8 +443,8 @@ void main(void)
     TRISB |= (1<<6);   // configure pin RB6 as input
     CNPUB |= (1<<6);   // Enable pull-up resistor for RB6
     
-    ANSELA &= ~(1<<1);	//Set RA1 as a digital I/O
-    TRISA &= ~(1<<1); 	//configure pin RA1 as output (speaker)
+    //ANSELA &= ~(1<<1);	//Set RA1 as a digital I/O
+    ///TRISA &= ~(1<<1); 	//configure pin RA1 as output (speaker)
  	
 	printf("\r\nPress and hold a push-button attached to RB6 (pin 15) to transmit.\r\n");
 	
@@ -453,17 +453,18 @@ void main(void)
 	while(1)
 	{
 		timeout=0;
-		if((PORTB&(1<<6))==0)
-		{
+		//if((PORTB&(1<<6))==0)
+		//{
 		adcval_y = ADCRead(4); // note that we call pin AN4 (RB2) by it's analog number
     	voltage_y=adcval_y*3.3/1023.0;
-    	adcval_x = ADCRead(3); 	//reading from AN3 (RB1)
+    	adcval_x = ADCRead(2); 	//reading from AN3 (RB1)
     	voltage_x = adcval_x*3.3/1023.0;
 		
 		sprintf(buff, "YM%.3f\nX%.3f\r\n", voltage_y, voltage_x);
 		//printf("%d", strlen(buff));
-		//printf("line %s\n", buff);
+		printf("%s\n", buff);
 		SerialTransmit1(buff);
+		//printf("sent");
 		
 		delayms(15);
 	
@@ -475,13 +476,13 @@ void main(void)
 			timeout_cnt++;
 			if(timeout_cnt>=100) break; //timeout after 10 ms
 			//printf("stuck1");
-		
 		}
 		if(U1STAbits.URXDA) {// Something has arrived
 			printf("arrived");
 			//delayms(100);
 			SerialReceive1(buff, sizeof(buff)-1);
 			printf("Received_val: %s\r\n", buff);
+			delayms(10);
 			//printf("received\r\n");
 			if(strlen(buff)==9) //assuming a message from robot is 5 bytes
 			{
@@ -492,7 +493,7 @@ void main(void)
 			}
 		}	
 			
-		} else {
+		/*} else {
 		adcval_y = ADCRead(4); // note that we call pin AN4 (RB2) by it's analog number
     	voltage_y=adcval_y*3.3/1023.0;
     	adcval_x = ADCRead(3); 	//reading from AN3 (RB1)
@@ -504,12 +505,12 @@ void main(void)
 		SerialTransmit1(buff);
 		
 		delayms(15);            
-    	}
-    //	printf("%.3f %.3f\r", voltage_y, voltage_x);
+    	}*/
+    	//printf("%.3f %.3f\r", voltage_y, voltage_x);
  	  	 // Makes the printf() above to send without a '\n' at the end
 
 		if(speaker)
-			LATA &= ~(1<<1);
-		
+			LATA &= ~(1<<1);	
+	//printf("loop");
 	}
 }
