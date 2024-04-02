@@ -35,7 +35,6 @@ volatile unsigned char rightf_pwm=0, rightb_pwm=0, leftf_pwm=0, leftb_pwm=0;
 //       VSS -|16      17|- VDD
 //             ----------
 
-#define F_CPU 32000000L
 // Uses SysTick to delay <us> micro-seconds. 
 void Delay_us(unsigned char us)
 {
@@ -47,7 +46,16 @@ void Delay_us(unsigned char us)
 	SysTick->CTRL = 0x00; // Disable Systick counter
 }
 
+void waitus(uint32_t us)
+{
+    SysTick->LOAD = (F_CPU / 1000000L) * us - 1; // Set reload register for 'us' delay
+    SysTick->VAL = 0; // Reset the SysTick counter value
+    SysTick->CTRL = SysTick_CTRL_CLKSOURCE_Msk | SysTick_CTRL_ENABLE_Msk; // Enable SysTick
 
+    // Wait for the count flag to be set indicating the timer has expired
+    while ((SysTick->CTRL & SysTick_CTRL_COUNTFLAG_Msk) == 0);
+    SysTick->CTRL = 0; // Disable SysTick
+}
 
 // Interrupt service routines are the same as normal
 // subroutines (or C funtions) in Cortex-M microcontrollers.
@@ -113,7 +121,7 @@ void TIM2_Handler(void)
 
 void wait_1ms(void)
 {
-	// For SysTick info check the STM32l0xxx Cortex-M0 programming manual.
+	// For SysTick info check the STM32L0xxx Cortex-M0 programming manual page 85.
 	SysTick->LOAD = (F_CPU/1000L) - 1;  // set reload register, counter rolls over from zero, hence -1
 	SysTick->VAL = 0; // load the SysTick counter
 	SysTick->CTRL  = SysTick_CTRL_CLKSOURCE_Msk | SysTick_CTRL_ENABLE_Msk; // Enable SysTick IRQ and SysTick Timer */
@@ -137,11 +145,6 @@ void Hardware_Init(void)
 
     GPIOA->MODER = (GPIOA->MODER & ~(BIT27|BIT26)) | BIT26; // Make pin PA13 output (page 200 of RM0451, two bits used to configure: bit0=1, bit1=0))
 	GPIOA->ODR |= BIT13; // 'set' pin to 1 is normal operation mode.
-	
-	GPIOA->MODER &= ~(BIT16 | BIT17); // Make pin PA8 input
-	// Activate pull up for pin PA8:
-	GPIOA->PUPDR |= BIT16; 
-	GPIOA->PUPDR &= ~(BIT17); 
 	
 	GPIOA->MODER = (GPIOA->MODER & ~(BIT8|BIT9)) | BIT8; // Make pin PA4 output (page 200 of RM0451, two bits used to configure: bit0=1, bit1=0)
 	GPIOA->OTYPER &= ~BIT4; // Push-pull
@@ -172,7 +175,7 @@ long int GetPeriod (int n)
 {
 	int i;
 	unsigned int saved_TCNT1a, saved_TCNT1b;
-	
+
 	SysTick->LOAD = 0xffffff;  // 24-bit counter set to check for signal present
 	SysTick->VAL = 0xffffff; // load the SysTick counter
 	SysTick->CTRL  = SysTick_CTRL_CLKSOURCE_Msk | SysTick_CTRL_ENABLE_Msk; // Enable SysTick IRQ and SysTick Timer */
@@ -190,7 +193,7 @@ long int GetPeriod (int n)
 		if(SysTick->CTRL & BIT16) return 0;
 	}
 	SysTick->CTRL = 0x00; // Disable Systick counter
-	
+
 	SysTick->LOAD = 0xffffff;  // 24-bit counter reset
 	SysTick->VAL = 0xffffff; // load the SysTick counter to initial value
 	SysTick->CTRL  = SysTick_CTRL_CLKSOURCE_Msk | SysTick_CTRL_ENABLE_Msk; // Enable SysTick IRQ and SysTick Timer */
@@ -252,9 +255,17 @@ int main(void)
 	float ref_freq = 0.0; 
 	float freq_change = 0.0;
 
-
+	char test [40];
+	
 	Hardware_Init();
 	initUART2(9600);
+	
+	GPIOA->MODER &= ~(BIT16 | BIT17); // Make pin PA8 input
+	// Activate pull up for pin PA8:
+	GPIOA->PUPDR |= BIT16; 
+	GPIOA->PUPDR &= ~(BIT17);
+	
+	RCC->IOPENR != 0x00000001;
 	
 	waitms(1000); // Give putty some time to start.
 	printf("\r\nJDY-40 test\r\n");
@@ -274,13 +285,13 @@ int main(void)
 	
 	printf("\r\nPress and hold a push-button attached to PA8 (pin 18) to transmit.\r\n");
 	
-	for(int time = 1; time <= 10; time++)
+	for(int time = 1; time <= 200; time++)
 	{
-		count = GetPeriod(100); 
+		count = GetPeriod(200); 
 	
 		if(count>0)
 		{
-				T=count/(F_CPU*100.0); // Since we have the time of 100 periods, we need to divide by 100
+				T=count/(F_CPU*200.0); // Since we have the time of 100 periods, we need to divide by 100
 				f=1.0/T;
 				 
 		}
@@ -289,10 +300,10 @@ int main(void)
 				printf("NO SIGNAL                     \r");
 		}
 		ref_freq = (ref_freq + f); 
-		Delay_us(20); 
+		waitus(10); 
 	}
 	
-	ref_freq = ref_freq / 10.0; 
+	ref_freq = ref_freq / 200.0; 
 	
 	cnt=0;
 	while(1)
@@ -318,11 +329,11 @@ int main(void)
 		}*/
 		
 		
-		count=GetPeriod(100);
+		count=GetPeriod(300);
 		
 		if(count>0)
 		{
-			T=count/(F_CPU*100.0); // Since we have the time of 100 periods, we need to divide by 100
+			T=count/(F_CPU*300.0); // Since we have the time of 100 periods, we need to divide by 100
 			f=1.0/T;
 				freq_change = ref_freq - f; 
 					if(freq_change < 0){
@@ -330,10 +341,17 @@ int main(void)
 						}
 					else freq_change = freq_change; 
 					
-					if(freq_change >= 60.0){
-						printf("metal detected! freq_change=%.3fHz ref_freq=%.3fHz\r ", freq_change, ref_freq); 
+					if(freq_change >= 160.0){
+						sprintf(test, "metal detected! freq_change=%.3fHz ref_freq=%.3fHz\r", freq_change, ref_freq);
+						printf("metal detected! freq_change=%i Hz ref_freq=%i Hz freq=%i    \r", (int)freq_change, (int)ref_freq, (int)f);
+						//printf(test); 
 					}
-					else printf("freq_change=%.3fHz\r", freq_change);
+					else 
+					{
+					    //sprintf(test, "freq_change=%.3fHz ref_freq=%.3fHz\r", freq_change, ref_freq);
+						//printf(test);
+						printf("freq_change=%i Hz ref_freq=%i Hz freq=%i                           \r", (int)freq_change, (int)ref_freq, (int)f);
+					}
 		}
 		else
 		{
@@ -387,8 +405,8 @@ int main(void)
 							
 							//prints metal reading into a string
 							metal_digits = 3;
-							metal = 555;
-							i = 79; //length of metal_reading -1
+							metal = (int)freq_change;
+							i = 39; //length of metal_reading -1
 							while((metal > 0) | (metal_digits > 0)){
 								metal_reading[i--] = intchars[metal%10];
 								metal/=10;
@@ -509,9 +527,7 @@ int main(void)
 			
 		}
 			   //printf("\rHIGH, %i, %i, \n", leftf_pwm, rightf_pwm);
-			   //printf("LOW, %i, %i, \n", leftb_pwm, rightb_pwm);
-		
-		
+			  
 	}
 
 }
