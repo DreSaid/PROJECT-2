@@ -520,9 +520,7 @@ void main(void)
 		{
 			T1CONbits.ON = 0; //speaker off otherwise
 		}
-		
-		//if(speaker)
-		//	LATA &= ~(1<<1);	
+			
 	//printf("loop");   //debugger
 	}
 }
