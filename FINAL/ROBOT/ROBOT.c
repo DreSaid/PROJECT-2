@@ -144,7 +144,7 @@ long int GetPeriod (int n)
 {
 	int i;
 	unsigned int saved_TCNT1a, saved_TCNT1b;
-
+	
 	SysTick->LOAD = 0xffffff;  // 24-bit counter set to check for signal present
 	SysTick->VAL = 0xffffff; // load the SysTick counter
 	SysTick->CTRL  = SysTick_CTRL_CLKSOURCE_Msk | SysTick_CTRL_ENABLE_Msk; // Enable SysTick IRQ and SysTick Timer */
@@ -429,29 +429,33 @@ int main(void)
 							x_volts = atof(x_voltage+1);
 							y_volts = atof(y_voltage + 2);
 							
-							count=GetPeriod(100);
-		
+							__disable_irq();
+							count=GetPeriod(50);
+							__enable_irq();
+							
 							if(count>0)
 							{
-								T=count/(F_CPU*100.0); // Since we have the time of 100 periods, we need to divide by 100
+								
+								T=count/(F_CPU*50.0); // Since we have the time of 100 periods, we need to divide by 100
 								f=1.0/T;
-									freq_change = ref_freq - f; 
-										if(freq_change < 0){
-											freq_change = freq_change * -1.0; 
-											}
-										else freq_change = freq_change; 
+								freq_change = ref_freq - f; 
+								if(freq_change < 0){
+									freq_change = freq_change * -1.0; 
+									}
+								else freq_change = freq_change; 
+								
+								if(freq_change >= 600.0){
+									//sprintf(test, "metal detected! freq_change=%.3fHz ref_freq=%.3fHz\r", freq_change, ref_freq);
+									printf("freq_change=%i Hz ref_freq=%i Hz freq=%i metal detected!          \r\n", (int)freq_change, (int)ref_freq, (int)f);
+									//printf(test); 
+								}
+								else 
+								{
+								    //sprintf(test, "freq_change=%.3fHz ref_freq=%.3fHz\r", freq_change, ref_freq);
+									//printf(test);
+									printf("freq_change=%i Hz ref_freq=%i Hz freq=%i                           \r\n", (int)freq_change, (int)ref_freq, (int)f);
+								}
 										
-										if(freq_change >= 600.0){
-											//sprintf(test, "metal detected! freq_change=%.3fHz ref_freq=%.3fHz\r", freq_change, ref_freq);
-											printf("freq_change=%i Hz ref_freq=%i Hz freq=%i metal detected!          \r\n", (int)freq_change, (int)ref_freq, (int)f);
-											//printf(test); 
-										}
-										else 
-										{
-										    //sprintf(test, "freq_change=%.3fHz ref_freq=%.3fHz\r", freq_change, ref_freq);
-											//printf(test);
-											printf("freq_change=%i Hz ref_freq=%i Hz freq=%i                           \r\n", (int)freq_change, (int)ref_freq, (int)f);
-										}
 							}
 							else
 							{
@@ -624,8 +628,8 @@ int main(void)
 				    {
 				    	leftf_pwm = 0;
 			        	rightf_pwm = 0;
-				    	leftb_pwm = power;
-				    	rightb_pwm = power*0.91;
+				    	leftb_pwm = power*0.95;
+				    	rightb_pwm = power;
 				    }
 			    }
 			
