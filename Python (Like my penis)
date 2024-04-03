@@ -1,3 +1,6 @@
+import serial
+import matplotlib.pyplot as plt
+
 def read_serial_data(port, baud_rate):
     ser = serial.Serial(port, baud_rate)  # Set a timeout of 1 second
     
@@ -43,3 +46,12 @@ def read_serial_data(port, baud_rate):
     finally:
         print("Plotting completed.")
         ser.close()
+
+if __name__ == "__main__":
+    serial_port = 'COM5'  # Update with the correct COM port
+    baud_rate = 115200
+
+    try:
+        read_serial_data(serial_port, baud_rate)
+    except Exception as e:
+        print(f"An error occurred: {e}")
