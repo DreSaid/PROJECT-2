@@ -1,0 +1,41 @@
+import matplotlib.pyplot as plt
+
+# Turn on interactive mode
+plt.ion()
+
+# Create figure and axis
+fig, ax = plt.subplots()
+ax.set_aspect('equal', adjustable='datalim')
+
+# Initialize plot
+line, = ax.plot([], [], marker='o')
+ax.set_xlim(-100, 100)
+ax.set_ylim(-100, 100)
+ax.set_title('Travel Path')
+ax.set_xlabel('X Position')
+ax.set_ylabel('Y Position')
+
+# Initialize variables
+x_positions = []
+y_positions = []
+
+# Update plot function
+def update_plot(x_voltages, y_voltages):
+    global x_positions, y_positions
+    x_positions.append((x_voltages - 1.6) * 100)  # Assuming 3.2 is full right, 0 is full left
+    y_positions.append((y_voltages - 1.6) * 100)  # Assuming 3.2 is full forward, 0 is full back
+    line.set_xdata(x_positions)
+    line.set_ydata(y_positions)
+    ax.relim()
+    ax.autoscale_view()
+    fig.canvas.draw()
+    fig.canvas.flush_events()
+
+# Simulate continuous updates (replace this with your actual input mechanism)
+import random
+import time
+while True:
+    x_voltages = random.uniform(0, 3.2)  # Simulate x voltage input
+    y_voltages = random.uniform(0, 3.2)  # Simulate y voltage input
+    update_plot(x_voltages, y_voltages)
+    time.sleep(0.1)  # Adjust the sleep time as needed
