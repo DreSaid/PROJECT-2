@@ -53,7 +53,7 @@
 #define LCD_D7 LATAbits.LATA4
 
 //FREQUENCY CHANGE REF SO WE CAN FIND IT
-#define FCHANGE_REF 600
+#define FCHANGE_REF 100
 
 
 void wait_1us(void);
@@ -453,7 +453,7 @@ void main(void)
     	adcval_x = ADCRead(2); 	//reading from AN3 (RB1)
     	voltage_x = adcval_x*3.3/1023.0;
     	
-		
+		printf("%0.3f,%0.3f\n\r", voltage_x,voltage_y);
 		//FIRST SECTION SENDS AN M when we want a metal reading--how often depends on count variable and delays
 		
 		//if((PORTB&(1<<6))==0)
@@ -489,7 +489,7 @@ void main(void)
 			{
 				//printf("in\n");
 				freq_change = atoi(buff);
-				printf("%d\r\n",freq_change);
+			//	printf("%d\r\n",freq_change);
 			}
 		}	
 
@@ -512,9 +512,9 @@ void main(void)
 		//freq_change=100;
 		if (freq_change > FCHANGE_REF) 
 		{
-			SetupTimer1(freq_change*4); //(this function also turns speaker on)
+			SetupTimer1(freq_change*8); //(this function also turns speaker on)
 			//WE NEED TO WRITE AN EQUATION FOR THIS PARAMETER, maybe use BASE_FREQ
-			for(i = 1; i <= freq_change/75 ; i++)
+			for(i = 1; i <= freq_change/25 ; i++)
 			{
 				DefineCustomCharacter(); 
 				PrintBlack(i - 1); 
