@@ -353,8 +353,9 @@ void main(void)
     int count =0;
     int freq_change;
     
- 	
-    
+    int set_freq = 1;	
+    int ref_freq = 0;
+	
 	DDPCON = 0;
 	CFGCON = 0;
 	
@@ -460,6 +461,12 @@ void main(void)
 			{
 				//printf("in\n");
 				freq_change = atoi(buff);
+				if(set_freq == 1)
+				{
+					ref_freq = freq_change + 70;
+					set_freq = 0;
+				}
+				
 				printf("%d\r\n",freq_change);
 			}
 		}	
@@ -481,7 +488,7 @@ void main(void)
 	//printf("loop");
 		//SPEAKER CODE
 		//freq_change=100;
-		if (freq_change > FCHANGE_REF) 
+		if (freq_change > ref_freq) 
 		{
 			SetupTimer1(freq_change*4); //(this function also turns speaker on)
 			//WE NEED TO WRITE AN EQUATION FOR THIS PARAMETER, maybe use BASE_FREQ
