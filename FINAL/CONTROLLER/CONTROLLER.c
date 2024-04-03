@@ -277,13 +277,13 @@ void WriteData(unsigned char x)
 {
 	LCD_RS = 1;
 	LCD_byte(x);
-	delayms(2);
+	delayus(10);
 }
 void WriteCommand(unsigned char x)
 {
 	LCD_RS = 0;
 	LCD_byte(x);
-	delayms(5);
+	delayus(10);
 }
 void LCD_4BIT(void)
 {
@@ -315,7 +315,7 @@ void LCDprint(char * string, unsigned char line, unsigned char clear)
 	int j;
 	
 	WriteCommand(line==2?0xc0:0x80);
-	delayms(5);
+	delayus(10);
 	for(j=0;string[j]!=0;j++)
 		WriteData(string[j]); //Write the message character by character
 	if(clear)
@@ -333,6 +333,34 @@ void SendATCommand (char * s)
 	LATB |= 1<<14; // 'SET' pin of JDY40 to 1 is normal operation mode.
 	delayms(10);
 	printf("Response: %s\n", buff);
+}
+
+void DefineCustomCharacter(void)
+{
+   
+    WriteCommand(0x40); // Set CGRAM address to 0
+    WriteData(0b11111);
+    WriteData(0b11111);
+    WriteData(0b11111);
+    WriteData(0b11111);
+    WriteData(0b11111);
+    WriteData(0b11111);
+    WriteData(0b11111);
+    WriteData(0b11111);
+    
+      
+  
+    // Return to home (DDRAM address 0)
+    WriteCommand(0x80);
+}
+
+
+void PrintBlack(int offset)
+{
+    // Display the custom character at position 0
+    WriteCommand(0xC0 + offset); // Set DDRAM address to 0
+    WriteData(0);       // Display custom character at address 0
+    
 }
 void main(void)
 {
@@ -352,6 +380,7 @@ void main(void)
     int received_value; //this is a TESTING variable
     int count =0;
     int freq_change;
+    int i;
     
     int set_freq = 1;	
     int ref_freq = 0;
@@ -492,14 +521,26 @@ void main(void)
 		{
 			SetupTimer1(freq_change*4); //(this function also turns speaker on)
 			//WE NEED TO WRITE AN EQUATION FOR THIS PARAMETER, maybe use BASE_FREQ
+			for(i = 1; i <= freq_change/50 ; i++)
+			{
+				DefineCustomCharacter(); 
+				PrintBlack(i - 1); 
+					
+				
+			}
+			
+			   for(; i < 16; i++) 
+			   {
+		        WriteCommand(0xC0 + i); // Move cursor to position i
+		        WriteData(' '); // Print a space to clear the character
+		       }
 		}
 		else
 		{
 			T1CONbits.ON = 0; //speaker off otherwise
+			LCDprint("", 2, 1);
 		}
 
-		
-	
 		count++;
 	}
 }
