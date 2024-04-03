@@ -277,13 +277,13 @@ void WriteData(unsigned char x)
 {
 	LCD_RS = 1;
 	LCD_byte(x);
-	delayms(2);
+	delayus(40);
 }
 void WriteCommand(unsigned char x)
 {
 	LCD_RS = 0;
 	LCD_byte(x);
-	delayms(5);
+	delayus(40);
 }
 void LCD_4BIT(void)
 {
@@ -514,18 +514,25 @@ void main(void)
 		{
 			SetupTimer1(freq_change*4); //(this function also turns speaker on)
 			//WE NEED TO WRITE AN EQUATION FOR THIS PARAMETER, maybe use BASE_FREQ
-			for(i = 1; i <= freq_change/100 ; i++)
+			for(i = 1; i <= freq_change/75 ; i++)
 			{
 				DefineCustomCharacter(); 
 				PrintBlack(i - 1); 
+					
 				
-			}		
+			}
+			
+			   for(; i < 16; i++) {
+		        WriteCommand(0xC0 + i); // Move cursor to position i
+		        WriteData(' '); // Print a space to clear the character
+            }		
 		
 		}
 		
 		else
 		{
 			T1CONbits.ON = 0; //speaker off otherwise
+			LCDprint("", 2, 1);
 		}
 
 		
