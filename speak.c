@@ -334,6 +334,34 @@ void SendATCommand (char * s)
 	delayms(10);
 	printf("Response: %s\n", buff);
 }
+
+void DefineCustomCharacter(void)
+{
+   
+    WriteCommand(0x40); // Set CGRAM address to 0
+    WriteData(0b11111);
+    WriteData(0b11111);
+    WriteData(0b11111);
+    WriteData(0b11111);
+    WriteData(0b11111);
+    WriteData(0b11111);
+    WriteData(0b11111);
+    WriteData(0b11111);
+    
+      
+  
+    // Return to home (DDRAM address 0)
+    WriteCommand(0x80);
+}
+
+// Print the custom character to the LCD
+void PrintBlack(int offset)
+{
+    // Display the custom character at position 0
+    WriteCommand(0xC0 + offset); // Set DDRAM address to 0
+    WriteData(0);       // Display custom character at address 0
+    
+}
 void main(void)
 {
 	char buff[80];
@@ -352,6 +380,7 @@ void main(void)
     int received_value; //this is a TESTING variable
     int count =0;
     int freq_change;
+    int i; 
     
  	
     
@@ -485,7 +514,15 @@ void main(void)
 		{
 			SetupTimer1(freq_change*4); //(this function also turns speaker on)
 			//WE NEED TO WRITE AN EQUATION FOR THIS PARAMETER, maybe use BASE_FREQ
+			for(i = 1; i <= freq_change/100 ; i++)
+			{
+				DefineCustomCharacter(); 
+				PrintBlack(i - 1); 
+				
+			}		
+		
 		}
+		
 		else
 		{
 			T1CONbits.ON = 0; //speaker off otherwise
