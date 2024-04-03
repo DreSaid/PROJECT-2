@@ -32,10 +32,18 @@ def update_plot(x_voltages, y_voltages):
     fig.canvas.flush_events()
 
 # Simulate continuous updates (replace this with your actual input mechanism)
+import re
 import random
 import time
+
 while True:
-    x_voltages = random.uniform(0, 3.2)  # Simulate x voltage input
-    y_voltages = random.uniform(0, 3.2)  # Simulate y voltage input
-    update_plot(x_voltages, y_voltages)
-    time.sleep(0.1)  # Adjust the sleep time as needed
+    # Simulate receiving x and y voltages as a string in the format "(x.xxx, x.xxx)"
+    x_y_str = "(%.3f, %.3f)" % (random.uniform(0, 3.2), random.uniform(0, 3.2))
+    
+    # Parse the string to extract x and y values
+    x_y_match = re.match(r"\((\d+\.\d+), (\d+\.\d+)\)", x_y_str)
+    if x_y_match:
+        x_voltages = float(x_y_match.group(1))
+        y_voltages = float(x_y_match.group(2))
+        update_plot(x_voltages, y_voltages)
+        time.sleep(0.1)  # Adjust the sleep time as needed
