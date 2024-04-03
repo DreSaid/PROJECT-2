@@ -1,49 +1,45 @@
-import matplotlib.pyplot as plt
-
-# Turn on interactive mode
-plt.ion()
-
-# Create figure and axis
-fig, ax = plt.subplots()
-ax.set_aspect('equal', adjustable='datalim')
-
-# Initialize plot
-line, = ax.plot([], [], marker='o')
-ax.set_xlim(-100, 100)
-ax.set_ylim(-100, 100)
-ax.set_title('Travel Path')
-ax.set_xlabel('X Position')
-ax.set_ylabel('Y Position')
-
-# Initialize variables
-x_positions = []
-y_positions = []
-
-# Update plot function
-def update_plot(x_voltages, y_voltages):
-    global x_positions, y_positions
-    x_positions.append((x_voltages - 1.6) * 100)  # Assuming 3.2 is full right, 0 is full left
-    y_positions.append((y_voltages - 1.6) * 100)  # Assuming 3.2 is full forward, 0 is full back
-    line.set_xdata(x_positions)
-    line.set_ydata(y_positions)
-    ax.relim()
-    ax.autoscale_view()
-    fig.canvas.draw()
-    fig.canvas.flush_events()
-
-# Simulate continuous updates (replace this with your actual input mechanism)
-import re
-import random
-import time
-
-while True:
-    # Simulate receiving x and y voltages as a string in the format "(x.xxx, x.xxx)"
-    x_y_str = "(%.3f, %.3f)" % (random.uniform(0, 3.2), random.uniform(0, 3.2))
+def read_serial_data(port, baud_rate):
+    ser = serial.Serial(port, baud_rate)  # Set a timeout of 1 second
     
-    # Parse the string to extract x and y values
-    x_y_match = re.match(r"\((\d+\.\d+), (\d+\.\d+)\)", x_y_str)
-    if x_y_match:
-        x_voltages = float(x_y_match.group(1))
-        y_voltages = float(x_y_match.group(2))
-        update_plot(x_voltages, y_voltages)
-        time.sleep(0.1)  # Adjust the sleep time as needed
+    # Initialize plot
+    plt.ion()
+    fig, ax = plt.subplots()
+    ax.set_aspect('equal', adjustable='datalim')
+    line, = ax.plot([], [], marker='o')
+    ax.set_xlim(-100, 100)
+    ax.set_ylim(-100, 100)
+    ax.set_title('Travel Path')
+    ax.set_xlabel('X Position')
+    ax.set_ylabel('Y Position')
+    x_positions = []
+    y_positions = []
+
+    try:
+        while True:
+            line = ser.readline().decode().strip()
+            
+            try:
+                x_y_values = line.split(',')
+                if len(x_y_values) == 2:
+                    x_voltage = float(x_y_values[0].strip())
+                    y_voltage = float(x_y_values[1].strip())
+                    x_positions.append((x_voltage - 1.6) * 100)  # Assuming 3.2 is full right, 0 is full left
+                    y_positions.append((y_voltage - 1.6) * 100)  # Assuming 3.2 is full forward, 0 is full back
+                    line.set_xdata(x_positions)
+                    line.set_ydata(y_positions)
+                    ax.relim()
+                    ax.autoscale_view()
+                    fig.canvas.draw()
+                    fig.canvas.flush_events()
+                else:
+                    print(f"Invalid data format received: {line}")
+
+            except ValueError:
+                print(f"Invalid value received: {line}")
+
+    except KeyboardInterrupt:
+        print("Script terminated.")
+
+    finally:
+        print("Plotting completed.")
+        ser.close()
