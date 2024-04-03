@@ -322,33 +322,6 @@ void LCDprint(char * string, unsigned char line, unsigned char clear)
 		for(;j<CHARS_PER_LINE;j++)
 			WriteData(' '); //Clear the rest of the line if clear is 1
 }
-void DefineCustomCharacter(void)
-{
-   
-    WriteCommand(0x40); // Set CGRAM address to 0
-    WriteData(0b11111);
-    WriteData(0b11111);
-    WriteData(0b11111);
-    WriteData(0b11111);
-    WriteData(0b11111);
-    WriteData(0b11111);
-    WriteData(0b11111);
-    WriteData(0b11111);
-    
-      
-  
-    // Return to home (DDRAM address 0)
-    WriteCommand(0x80);
-}
-
-// Print the custom character to the LCD
-void PrintBlack(void)
-{
-    // Display the custom character at position 0
-    WriteCommand(0xC0 + 12); // Set DDRAM address to 0
-    WriteData(0);       // Display custom character at address 0
-    
-}
 void SendATCommand (char * s)
 {
 	char buff[40];
