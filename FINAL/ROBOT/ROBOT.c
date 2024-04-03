@@ -10,6 +10,8 @@
 #define SYSCLK 32000000L
 #define DEF_F 100000L
 
+#define PIN_PERIOD (GPIOA->IDR&BIT8)
+
 volatile int PWM_Counter = 0;
 volatile unsigned char rightf_pwm=0, rightb_pwm=0, leftf_pwm=0, leftb_pwm=0;
 
@@ -127,6 +129,59 @@ void waitms (unsigned int ms)
 		for (k=0; k<4; k++) Delay_us(250);
 }
 
+void waitus(uint32_t us)
+{
+    SysTick->LOAD = (F_CPU / 1000000L) * us - 1; // Set reload register for 'us' delay
+    SysTick->VAL = 0; // Reset the SysTick counter value
+    SysTick->CTRL = SysTick_CTRL_CLKSOURCE_Msk | SysTick_CTRL_ENABLE_Msk; // Enable SysTick
+
+    // Wait for the count flag to be set indicating the timer has expired
+    while ((SysTick->CTRL & SysTick_CTRL_COUNTFLAG_Msk) == 0);
+    SysTick->CTRL = 0; // Disable SysTick
+}
+
+long int GetPeriod (int n)
+{
+	int i;
+	unsigned int saved_TCNT1a, saved_TCNT1b;
+
+	SysTick->LOAD = 0xffffff;  // 24-bit counter set to check for signal present
+	SysTick->VAL = 0xffffff; // load the SysTick counter
+	SysTick->CTRL  = SysTick_CTRL_CLKSOURCE_Msk | SysTick_CTRL_ENABLE_Msk; // Enable SysTick IRQ and SysTick Timer */
+	while (PIN_PERIOD!=0) // Wait for square wave to be 0
+	{
+		if(SysTick->CTRL & BIT16) return 0;
+	}
+	SysTick->CTRL = 0x00; // Disable Systick counter
+
+	SysTick->LOAD = 0xffffff;  // 24-bit counter set to check for signal present
+	SysTick->VAL = 0xffffff; // load the SysTick counter
+	SysTick->CTRL  = SysTick_CTRL_CLKSOURCE_Msk | SysTick_CTRL_ENABLE_Msk; // Enable SysTick IRQ and SysTick Timer */
+	while (PIN_PERIOD==0) // Wait for square wave to be 1
+	{
+		if(SysTick->CTRL & BIT16) return 0;
+	}
+	SysTick->CTRL = 0x00; // Disable Systick counter
+
+	SysTick->LOAD = 0xffffff;  // 24-bit counter reset
+	SysTick->VAL = 0xffffff; // load the SysTick counter to initial value
+	SysTick->CTRL  = SysTick_CTRL_CLKSOURCE_Msk | SysTick_CTRL_ENABLE_Msk; // Enable SysTick IRQ and SysTick Timer */
+	for(i=0; i<n; i++) // Measure the time of 'n' periods
+	{
+		while (PIN_PERIOD!=0) // Wait for square wave to be 0
+		{
+			if(SysTick->CTRL & BIT16) return 0;
+		}
+		while (PIN_PERIOD==0) // Wait for square wave to be 1
+		{
+			if(SysTick->CTRL & BIT16) return 0;
+		}
+	}
+	SysTick->CTRL = 0x00; // Disable Systick counter
+
+	return 0xffffff-SysTick->VAL;
+}
+
 void Hardware_Init(void)
 {
 	GPIOA->OSPEEDR=0xffffffff; // All pins of port A configured for very high speed! Page 201 of RM0451
@@ -135,6 +190,11 @@ void Hardware_Init(void)
 
     GPIOA->MODER = (GPIOA->MODER & ~(BIT27|BIT26)) | BIT26; // Make pin PA13 output (page 200 of RM0451, two bits used to configure: bit0=1, bit1=0))
 	GPIOA->ODR |= BIT13; // 'set' pin to 1 is normal operation mode.
+
+	GPIOA->MODER &= ~(BIT16 | BIT17); // Make pin PA8 input
+	// Activate pull up for pin PA8:
+	GPIOA->PUPDR |= BIT16; 
+	GPIOA->PUPDR &= ~(BIT17);
 
 	GPIOA->MODER &= ~(BIT14 | BIT15); // Make pin PA8 input
 	// Activate pull up for pin PA8:
@@ -200,7 +260,13 @@ int main(void)
     int cnt=0;
     float temp;
     char buff[40];
+    
+    long int count;
+	float T, f;
+	float ref_freq = 0.0; 
+	float freq_change = 0.0;
 
+	char test [40];
 
 	Hardware_Init();
 	initUART2(9600);
@@ -210,7 +276,7 @@ int main(void)
 
 	// We should select an unique device ID.  The device ID can be a hex
 	// number from 0x0000 to 0xFFFF.  In this case is set to 0xABBA
-	SendATCommand("AT+DVID6969\r\n");  
+	SendATCommand("AT+DVID6058\r\n");  
 
 	// To check configuration
 	SendATCommand("AT+VER\r\n");
@@ -222,6 +288,26 @@ int main(void)
 	SendATCommand("AT+CLSS\r\n");
 	
 	printf("\r\nPress and hold a push-button attached to PA8 (pin 18) to transmit.\r\n");
+	
+	for(int time = 1; time <= 200; time++)
+	{
+		count = GetPeriod(200); 
+	
+		if(count>0)
+		{
+				T=count/(F_CPU*200.0); // Since we have the time of 100 periods, we need to divide by 100
+				f=1.0/T;
+				 
+		}
+		else
+		{
+				printf("NO SIGNAL                     \r");
+		}
+		ref_freq = (ref_freq + f); 
+		waitus(10); 
+	}
+	
+	ref_freq = ref_freq / 200.0; 
 	
 	cnt=0;
 	while(1)
@@ -236,15 +322,35 @@ int main(void)
     //	fflush(stdout);
     //	egets_echo(buf, 31); // wait here until data is received
  	//	printf("\r\n");
- 
+		
+		/*count=GetPeriod(100);
 
-		if((GPIOA->IDR&BIT7)==0)
+		if(count>0)
 		{
-			sprintf(buff, "JDY40 test %d\n", cnt++);
-			eputs2(buff);
-			eputc('.');
-			waitms(200);
+			T=count/(F_CPU*100.0); // Since we have the time of 100 periods, we need to divide by 100
+			f=1.0/T;
+				freq_change = ref_freq - f; 
+					if(freq_change < 0){
+						freq_change = freq_change * -1.0; 
+						}
+					else freq_change = freq_change; 
+					
+					if(freq_change >= 160.0){
+						sprintf(test, "metal detected! freq_change=%.3fHz ref_freq=%.3fHz\r", freq_change, ref_freq);
+						printf("metal detected! freq_change=%i Hz ref_freq=%i Hz freq=%i    \r", (int)freq_change, (int)ref_freq, (int)f);
+						//printf(test); 
+					}
+					else 
+					{
+					    //sprintf(test, "freq_change=%.3fHz ref_freq=%.3fHz\r", freq_change, ref_freq);
+						//printf(test);
+						printf("freq_change=%i Hz ref_freq=%i Hz freq=%i                           \r", (int)freq_change, (int)ref_freq, (int)f);
+					}
 		}
+		else
+		{
+			printf("NO SIGNAL                     \r");
+		}*/
 		
 		if(ReceivedBytes2()>0) // Something has arrived
 		{
@@ -254,7 +360,7 @@ int main(void)
 				egets2(x_voltage, sizeof(x_voltage)-1);
 				
 				//Prints voltage values
-				printf("Y%s\n\rX%s\n\r",y_voltage,x_voltage);
+				//printf("Y%s\n\rX%s\n\r",y_voltage,x_voltage);
 				
 				//Swaps the strings if X and Y get mixed up
 				if(y_voltage[0] != 'Y')
@@ -267,9 +373,40 @@ int main(void)
 					}
 				}
 				
+				/*for(int m = 0; m <= 8; m++)
+				{
+					if(y_voltage[m] == 'M')
+					{
+						
+						//printf("M Recieved");
+						//printf(&metal_reading[i+1]);
+						//printf("%i", strlen(&metal_reading[i+1]));
+						//eputs2(&metal_reading[i+1]);
+						sprintf(metal_reading, "%i\n", metal);
+						eputs2(metal_reading);
+						waitms(10);
+						//printf("Metal Sent");
+					}
+					
+					if(x_voltage[m] == 'M')
+					{
+						
+						//printf("M Recieved");
+						//printf(&metal_reading[i+1]);
+						//printf("%i", strlen(&metal_reading[i+1]));
+						//eputs2(&metal_reading[i+1]);
+						sprintf(metal_reading, "%i\n", metal);
+						eputs2(metal_reading);
+						waitms(10);
+						//printf("Metal Sent");
+					}
+				}*/
+				
+				
 				//Tests if there is an M requesting the metal value
 				if(y_voltage[1] == 'M')
 				{
+					
 					//Filter 1: Ignores any strings that are not the correct lengths
 					if((strlen(x_voltage) == 8) && (strlen(y_voltage) == 8))
 					{
@@ -284,34 +421,107 @@ int main(void)
 						if(((temp_x<=3.4) && (temp_x>=0)) && ((temp_y<=3.4) && (temp_y>=0)))
 						{	
 							//If the metal reading is requested		
-							printf("M Recieved");
+							//printf("M Recieved");
+							
+							//printf("Y%s\n\rX%s\n\r",y_voltage,x_voltage);
 							
 							//Sets the actual voltage values after all the filtering is done
 							x_volts = atof(x_voltage+1);
 							y_volts = atof(y_voltage + 2);
 							
+							count=GetPeriod(100);
+		
+							if(count>0)
+							{
+								T=count/(F_CPU*100.0); // Since we have the time of 100 periods, we need to divide by 100
+								f=1.0/T;
+									freq_change = ref_freq - f; 
+										if(freq_change < 0){
+											freq_change = freq_change * -1.0; 
+											}
+										else freq_change = freq_change; 
+										
+										if(freq_change >= 600.0){
+											//sprintf(test, "metal detected! freq_change=%.3fHz ref_freq=%.3fHz\r", freq_change, ref_freq);
+											printf("freq_change=%i Hz ref_freq=%i Hz freq=%i metal detected!          \r\n", (int)freq_change, (int)ref_freq, (int)f);
+											//printf(test); 
+										}
+										else 
+										{
+										    //sprintf(test, "freq_change=%.3fHz ref_freq=%.3fHz\r", freq_change, ref_freq);
+											//printf(test);
+											printf("freq_change=%i Hz ref_freq=%i Hz freq=%i                           \r\n", (int)freq_change, (int)ref_freq, (int)f);
+										}
+							}
+							else
+							{
+								printf("NO SIGNAL                     \r");
+							}
+							
 							//prints metal reading into a string
-							metal_digits = 3;
-							metal = 555;
-							i = 79; //length of metal_reading -1
+							metal_digits = 4;
+							metal = freq_change;
+							i = 37; //length of metal_reading -1
+							
 							while((metal > 0) | (metal_digits > 0)){
 								metal_reading[i--] = intchars[metal%10];
 								metal/=10;
 								if(metal_digits != 0) metal_digits--;
 							}
+							metal_reading[38] = '\n';
+							metal_reading[39] = '\0';
 							
 							//Sends the metal reading
-							waitms(10);
-							printf(&metal_reading[i+1]);
-							printf("%i", strlen(&metal_reading[i+1]));
-							eputs2(&metal_reading[i+1]);
-							printf("Metal Sent");
+							//waitms(10);
+							//printf(&metal_reading[i+1]);
+							//printf("%i", strlen(&metal_reading[i+1]));
+							eputs2(metal_reading +i+1);
+							//sprintf(metal_reading, "%i\n", metal);
+							//eputs2(metal_reading);
+							//waitms(10);
+							//printf("Metal Sent");
+							
 						}
+					}
+					else
+					{
+						//printf("filtered STRING M\r\n");
+						//printf("X:%d Y:%d\n\r", strlen(x_voltage), strlen(y_voltage));
 					}
 				}
 				else
 				{
-					//Filter 1: Ignores any strings that are not the correct lengths
+					if(strlen(x_voltage) == 8) 
+					{
+						temp_x = atof(x_voltage+1);
+						
+						if((temp_x<=3.4) && (temp_x>=0)) 
+						{
+							x_volts = temp_x;
+							//printf("X:%s\n\r", x_voltage);	
+						}
+					}
+					else
+					{
+						//printf("FILTERED X");
+					}
+					
+					if(strlen(y_voltage) == 7) 
+					{
+						temp_y = atof(y_voltage+1);
+							if((temp_y<=3.4) && (temp_y>=0)) 
+							{
+								y_volts = temp_y;
+								//printf("Y:%s\n\r", y_voltage);
+							}
+					}
+					else
+					{
+						//printf("FILTERED Y");
+					}
+				
+					
+	/*				//Filter 1: Ignores any strings that are not the correct lengths
 					if((strlen(x_voltage) == 8) && (strlen(y_voltage) == 7))
 					{
 						
@@ -321,13 +531,20 @@ int main(void)
 						//temp_x = atof(x_voltage);
 						//temp_y = atof(y_voltage);
 						
-						// Filter 2: Ignores any temp values that are not in the correct range
+						 Filter 2: Ignores any temp values that are not in the correct range
 						if(((temp_x<=3.4) && (temp_x>=0)) && ((temp_y<=3.4) && (temp_y>=0)))
-						{			
+						{	
+							printf("Y%s\n\rX%s\n\r",y_voltage,x_voltage);
+									
 							x_volts = temp_x;
 							y_volts = temp_y;
-						}
+						
 					}
+					else
+					{
+						printf("filtered STRING\r\n");
+						printf("X:%d Y:%d\n\r", strlen(x_voltage), strlen(y_voltage));
+					} */
 				}
 				
 				//Calculate the power we are sending to the wheels
@@ -346,7 +563,7 @@ int main(void)
 				
 				
 				//Test if we are trying to move left
-				if (x_volts < 1.625) 
+				if (x_volts < 1.60) 
 				{
 			    	//Test if we are going forward or backwards
 			    	if(y_power >= -0.02)
@@ -365,7 +582,7 @@ int main(void)
 					}
 			    }
 			    //Test if we are moving to the right
-			    else if ( x_volts > 1.655 ) 
+			    else if ( x_volts > 1.63 ) 
 			    {
 			        //Test if we are going forward or backwards
 			        if(y_power >= -0.02)
@@ -373,7 +590,7 @@ int main(void)
 			        	leftb_pwm = 0;
 			        	rightb_pwm = 0;
 				        leftf_pwm = power;
-					    rightf_pwm = power - ((x_volts-1.65) * (power) / 1.65);
+					    rightf_pwm = (power - ((x_volts-1.65) * (power) / 1.65));
 					}
 					else
 					{
@@ -384,7 +601,7 @@ int main(void)
 					}
 			    }
 			    //Test to see if the thumbstick is in the middle
-			    else if ((1.625 <= x_volts && x_volts <= 1.655) && (1.62 <= y_volts && y_volts <= 1.67))
+			    else if ((1.60 <= x_volts && x_volts <= 1.63) && (1.62 <= y_volts && y_volts <= 1.67))
 			    {
 			        // Thumbstick is in the middle, stop both motors
 			        leftf_pwm = 0;
@@ -401,14 +618,14 @@ int main(void)
 			        	leftb_pwm = 0;
 			        	rightb_pwm = 0;
 				    	leftf_pwm = power;
-				    	rightf_pwm = power;
+				    	rightf_pwm = power*0.91;
 				    }
 				    else
 				    {
 				    	leftf_pwm = 0;
 			        	rightf_pwm = 0;
 				    	leftb_pwm = power;
-				    	rightb_pwm = power;
+				    	rightb_pwm = power*0.91;
 				    }
 			    }
 			
