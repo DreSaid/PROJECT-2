@@ -6,11 +6,13 @@
 #include <math.h>
 #include <string.h>
 
+
 #define F_CPU 32000000L
 #define SYSCLK 32000000L
 #define DEF_F 100000L
 
 #define PIN_PERIOD (GPIOA->IDR&BIT8)
+#define ECO_PIN (GPIOA->IDR&BIT12)
 
 volatile int PWM_Counter = 0;
 volatile unsigned char rightf_pwm=0, rightb_pwm=0, leftf_pwm=0, leftb_pwm=0;
@@ -182,11 +184,39 @@ long int GetPeriod (int n)
 	return 0xffffff-SysTick->VAL;
 }
 
+
+long int Get_time (void)
+{
+	int i;
+	unsigned int saved_TCNT1a, saved_TCNT1b;
+	
+
+	SysTick->LOAD = 0xffffff;  // 24-bit counter set to check for signal present
+	SysTick->VAL = 0xffffff; // load the SysTick counter
+	SysTick->CTRL  = SysTick_CTRL_CLKSOURCE_Msk | SysTick_CTRL_ENABLE_Msk; // Enable SysTick IRQ and SysTick Timer */
+	while (ECO_PIN==0) // Wait for square wave to be 1
+	{
+		if(SysTick->CTRL & BIT24 || SysTick->VAL < 0xf00000) return 0;
+	}
+	SysTick->CTRL = 0x00; // Disable Systick counter
+
+	SysTick->LOAD = 0xffffff;  // 24-bit counter reset
+	SysTick->VAL = 0xffffff; // load the SysTick counter to initial value
+	SysTick->CTRL  = SysTick_CTRL_CLKSOURCE_Msk | SysTick_CTRL_ENABLE_Msk; // Enable SysTick IRQ and SysTick Timer */
+	while (ECO_PIN!=0) // Wait for square wave to be 0
+	{
+		if(SysTick->CTRL & BIT24 || SysTick->VAL < 0xf00000) return 0;
+	}
+	SysTick->CTRL = 0x00; // Disable Systick counter
+
+	return 0xffffff-SysTick->VAL;
+}
+
 void Hardware_Init(void)
 {
-	GPIOA->OSPEEDR=0xffffffff; // All pins of port A configured for very high speed! Page 201 of RM0451
+	RCC->IOPENR |= BIT0 | BIT1;// peripheral clock enable for port A and B
 
-	RCC->IOPENR |= BIT0; // peripheral clock enable for port A
+	GPIOA->OSPEEDR=0xffffffff; // All pins of port A configured for very high speed! Page 201 of RM0451
 
     GPIOA->MODER = (GPIOA->MODER & ~(BIT27|BIT26)) | BIT26; // Make pin PA13 output (page 200 of RM0451, two bits used to configure: bit0=1, bit1=0))
 	GPIOA->ODR |= BIT13; // 'set' pin to 1 is normal operation mode.
@@ -196,7 +226,7 @@ void Hardware_Init(void)
 	GPIOA->PUPDR |= BIT16; 
 	GPIOA->PUPDR &= ~(BIT17);
 
-	GPIOA->MODER &= ~(BIT14 | BIT15); // Make pin PA8 input
+	GPIOA->MODER &= ~(BIT14 | BIT15); // Make pin PA7 input
 	// Activate pull up for pin PA8:
 	
 	GPIOA->MODER = (GPIOA->MODER & ~(BIT8|BIT9)) | BIT8; // Make pin PA4 output (page 200 of RM0451, two bits used to configure: bit0=1, bit1=0)
@@ -209,9 +239,20 @@ void Hardware_Init(void)
     GPIOA->MODER = (GPIOA->MODER & ~(BIT4|BIT5)) | BIT4; // Make pin PA2 output (page 200 of RM0451, two bits used to configure: bit0=1, bit1=0)
 	GPIOA->OTYPER &= ~BIT2; // Push-pull
 	
+	GPIOA->MODER &= ~(BIT24 | BIT25); // Make pin PA12 input
+	GPIOA->PUPDR |= BIT24; 
+	GPIOA->PUPDR &= ~(BIT25);
+	
 	GPIOA->PUPDR |= BIT14; 
 	GPIOA->PUPDR &= ~(BIT15);
+
+	GPIOB->OSPEEDR=0xffffffff; // All pins of port B configured for very high speed! Page 201 of RM0451
 	
+	GPIOB->MODER = (GPIOB->MODER & ~(BIT9|BIT8)) | BIT8; // Make pin PB4 output, yellow left
+    GPIOB->MODER = (GPIOB->MODER & ~(BIT11|BIT10)) | BIT10; // Make pin PB5 output, yellow right
+   	GPIOB->MODER = (GPIOB->MODER & ~(BIT13|BIT12)) | BIT12; // Make pin PB6 output, red
+   	GPIOB->MODER = (GPIOB->MODER & ~(BIT15|BIT14)) | BIT14; // Make pin PB7 output, white
+
 	// Set up timer
 	RCC->APB1ENR |= BIT0;  // turn on clock for timer2 (UM: page 177)
 	TIM2->ARR = F_CPU/DEF_F-1;
@@ -257,6 +298,13 @@ int main(void)
 	int metal_digits = 3;
 	int i = 0;
 	
+	long int Time;
+	long int distance; 
+	
+	int auto_turning = 0;
+	int auto_turning_counter = 0;
+	int auto_driving = 0;
+	
     int cnt=0;
     float temp;
     char buff[40];
@@ -268,9 +316,17 @@ int main(void)
 
 	char test [40];
 
+	int led_control = 0;
+	int blink_left = 0;
+	int blink_right = 0;
+	int blink_auto = 0;
+	
 	Hardware_Init();
 	initUART2(9600);
 	
+    GPIOA->MODER = (GPIOA->MODER & ~(BIT23|BIT22)) | BIT22; // Make pin PA11 output (page 200 of RM0451, two bits used to configure: bit0=1, bit1=0))
+	GPIOA->MODER &= ~(BIT25|BIT24); // Make pin PA12 input
+
 	waitms(1000); // Give putty some time to start.
 	printf("\r\nJDY-40 test\r\n");
 
@@ -281,9 +337,9 @@ int main(void)
 	// To check configuration
 	SendATCommand("AT+VER\r\n");
 	SendATCommand("AT+BAUD\r\n");
-	SendATCommand("AT+RFID\r\n");
+	SendATCommand("AT+RFID6058\r\n");
 	SendATCommand("AT+DVID\r\n");
-	SendATCommand("AT+RFC\r\n");
+	SendATCommand("AT+RFC119\r\n");
 	SendATCommand("AT+POWE\r\n");
 	SendATCommand("AT+CLSS\r\n");
 	
@@ -291,8 +347,10 @@ int main(void)
 	
 	for(int time = 1; time <= 200; time++)
 	{
-		count = GetPeriod(200); 
 	
+		count=GetPeriod(200);
+	
+		
 		if(count>0)
 		{
 				T=count/(F_CPU*200.0); // Since we have the time of 100 periods, we need to divide by 100
@@ -307,51 +365,21 @@ int main(void)
 		waitus(10); 
 	}
 	
-	ref_freq = ref_freq / 200.0; 
+	ref_freq = ref_freq / 200.0;
 	
 	cnt=0;
+	
 	while(1)
 	{
-	//	printf("PWM1 (60 to 255): ");
-    //	fflush(stdout);
-    //	egets_echo(buf, 31); // wait here until data is received
-  	//	printf("\r\n");
-	    
-	    
-    //	printf("PWM2 (60 to 255): ");
-    //	fflush(stdout);
-    //	egets_echo(buf, 31); // wait here until data is received
- 	//	printf("\r\n");
-		
-		/*count=GetPeriod(100);
-
-		if(count>0)
-		{
-			T=count/(F_CPU*100.0); // Since we have the time of 100 periods, we need to divide by 100
-			f=1.0/T;
-				freq_change = ref_freq - f; 
-					if(freq_change < 0){
-						freq_change = freq_change * -1.0; 
-						}
-					else freq_change = freq_change; 
-					
-					if(freq_change >= 160.0){
-						sprintf(test, "metal detected! freq_change=%.3fHz ref_freq=%.3fHz\r", freq_change, ref_freq);
-						printf("metal detected! freq_change=%i Hz ref_freq=%i Hz freq=%i    \r", (int)freq_change, (int)ref_freq, (int)f);
-						//printf(test); 
-					}
-					else 
-					{
-					    //sprintf(test, "freq_change=%.3fHz ref_freq=%.3fHz\r", freq_change, ref_freq);
-						//printf(test);
-						printf("freq_change=%i Hz ref_freq=%i Hz freq=%i                           \r", (int)freq_change, (int)ref_freq, (int)f);
-					}
+		if((GPIOA->IDR & BIT7) == 0) // Check if PA7 is high
+		{	
+			printf("button pressed\n\r");
+		   if(auto_driving == 1) auto_driving = 0; 
+		   else auto_driving = 1; 
+		   while((GPIOA->IDR & BIT7) == 0); 
 		}
-		else
-		{
-			printf("NO SIGNAL                     \r");
-		}*/
-		
+
+
 		if(ReceivedBytes2()>0) // Something has arrived
 		{
 			
@@ -372,37 +400,7 @@ int main(void)
 						x_voltage[i] = temp_v[i];
 					}
 				}
-				
-				/*for(int m = 0; m <= 8; m++)
-				{
-					if(y_voltage[m] == 'M')
-					{
 						
-						//printf("M Recieved");
-						//printf(&metal_reading[i+1]);
-						//printf("%i", strlen(&metal_reading[i+1]));
-						//eputs2(&metal_reading[i+1]);
-						sprintf(metal_reading, "%i\n", metal);
-						eputs2(metal_reading);
-						waitms(10);
-						//printf("Metal Sent");
-					}
-					
-					if(x_voltage[m] == 'M')
-					{
-						
-						//printf("M Recieved");
-						//printf(&metal_reading[i+1]);
-						//printf("%i", strlen(&metal_reading[i+1]));
-						//eputs2(&metal_reading[i+1]);
-						sprintf(metal_reading, "%i\n", metal);
-						eputs2(metal_reading);
-						waitms(10);
-						//printf("Metal Sent");
-					}
-				}*/
-				
-				
 				//Tests if there is an M requesting the metal value
 				if(y_voltage[1] == 'M')
 				{
@@ -446,14 +444,14 @@ int main(void)
 								
 								if(freq_change >= 600.0){
 									//sprintf(test, "metal detected! freq_change=%.3fHz ref_freq=%.3fHz\r", freq_change, ref_freq);
-									printf("freq_change=%i Hz ref_freq=%i Hz freq=%i metal detected!          \r\n", (int)freq_change, (int)ref_freq, (int)f);
+									//printf("freq_change=%i Hz ref_freq=%i Hz freq=%i metal detected!          \r\n", (int)freq_change, (int)ref_freq, (int)f);
 									//printf(test); 
 								}
 								else 
 								{
 								    //sprintf(test, "freq_change=%.3fHz ref_freq=%.3fHz\r", freq_change, ref_freq);
 									//printf(test);
-									printf("freq_change=%i Hz ref_freq=%i Hz freq=%i                           \r\n", (int)freq_change, (int)ref_freq, (int)f);
+									//printf("freq_change=%i Hz ref_freq=%i Hz freq=%i                           \r\n", (int)freq_change, (int)ref_freq, (int)f);
 								}
 										
 							}
@@ -492,10 +490,75 @@ int main(void)
 						//printf("filtered STRING M\r\n");
 						//printf("X:%d Y:%d\n\r", strlen(x_voltage), strlen(y_voltage));
 					}
+					if(auto_driving == 1) 
+					{
+						GPIOA->ODR ^= BIT11; // Toggle PA11
+						waitus(10);
+						GPIOA->ODR ^= BIT11; // Toggle PA11
+						waitus(10);
+						printf("before\r\n");
+						//__disable_irq();
+						Time = Get_time()/((F_CPU/1000000.0));
+						//__enable_irq();
+						if(Time > 0) distance = Time / 58.0; //if the measurement works
+						else printf("DISTANCE ERROR\n\r");
+						printf("\ntime = %i  distance = %i \r\n", Time, distance);  
+						if(auto_turning ==1)
+						{
+							auto_turning_counter++;
+							if(auto_turning_counter == 9)
+							{
+								auto_turning = 0;
+								auto_turning_counter = 0;
+							}
+						}
+						
+					}
 				}
 				else
 				{
-					if(strlen(x_voltage) == 8) 
+					if(auto_driving == 1)
+					{
+						//printf("driving loop\r\n");
+						
+						led_control = 5;
+						
+						if(freq_change <= 600)
+						{
+							if(auto_turning != 1)
+							{
+								if(distance <= 13) //turn 90 degrees
+								{
+									auto_turning = 1; 
+									leftf_pwm = 255;
+									leftb_pwm = 0;
+							    	rightf_pwm = 0;
+							    	rightb_pwm = 0;
+							    	//printf("random value: %i\n\r", SysTick->VAL%2);
+						  
+								}
+								else //go forward
+								{
+									printf("going forward \r\n");
+									leftf_pwm = 255;
+									leftb_pwm = 0;
+						    		rightf_pwm = 255*0.91;
+						    		rightb_pwm = 0;							
+								}
+							}
+						}
+					
+						else{
+							auto_driving = 0;
+							leftf_pwm = 0; 
+							leftb_pwm = 0;
+							rightf_pwm = 0; 
+							rightb_pwm = 0;
+							//auto_driving = 0; 
+						}
+					}
+					
+					else if(strlen(x_voltage) == 8) 
 					{
 						temp_x = atof(x_voltage+1);
 						
@@ -524,119 +587,187 @@ int main(void)
 						//printf("FILTERED Y");
 					}
 				
+				}
+				if(auto_driving == 0)
+				{
+					//Calculate the power we are sending to the wheels
+					y_power = (y_volts-1.65)*154.54;
+					x_power = (x_volts-1.65)*154.54;
 					
-	/*				//Filter 1: Ignores any strings that are not the correct lengths
-					if((strlen(x_voltage) == 8) && (strlen(y_voltage) == 7))
+					//If statement to always set the power to the highest of the two values
+					if(abs(x_power) <= abs(y_power))
 					{
-						
-						//Temp variables to test if the values are in the range we are looking for
-						temp_x = atof(x_voltage+1);
-						temp_y = atof(y_voltage+1);
-						//temp_x = atof(x_voltage);
-						//temp_y = atof(y_voltage);
-						
-						 Filter 2: Ignores any temp values that are not in the correct range
-						if(((temp_x<=3.4) && (temp_x>=0)) && ((temp_y<=3.4) && (temp_y>=0)))
-						{	
-							printf("Y%s\n\rX%s\n\r",y_voltage,x_voltage);
-									
-							x_volts = temp_x;
-							y_volts = temp_y;
-						
+						power = abs(y_power);
 					}
 					else
 					{
-						printf("filtered STRING\r\n");
-						printf("X:%d Y:%d\n\r", strlen(x_voltage), strlen(y_voltage));
-					} */
-				}
-				
-				//Calculate the power we are sending to the wheels
-				y_power = (y_volts-1.65)*154.54;
-				x_power = (x_volts-1.65)*154.54;
-				
-				//If statement to always set the power to the highest of the two values
-				if(abs(x_power) <= abs(y_power))
-				{
-					power = abs(y_power);
-				}
-				else
-				{
-					power = abs(x_power);
-				}
-				
-				
-				//Test if we are trying to move left
-				if (x_volts < 1.60) 
-				{
-			    	//Test if we are going forward or backwards
-			    	if(y_power >= -0.02)
-			    	{
-			    		leftb_pwm = 0;
-			        	rightb_pwm = 0;
-				    	rightf_pwm = power;
-					    leftf_pwm = (x_volts * (power) / 1.65); 
+						power = abs(x_power);
+					}
+					
+					
+					//Test if we are trying to move left
+					if (x_volts < 1.60) 
+					{
+				    	//Test if we are going forward or backwards
+				    	if(y_power >= -0.15)
+				    	{
+				    		leftb_pwm = 0;
+			        		rightb_pwm = 0;
+				    		rightf_pwm = power;
+					    	leftf_pwm = (x_volts * (power) / 1.65);
+					    
+					    	led_control = 3; 
 					}
 					else
 					{
 						leftf_pwm = 0;
-			        	rightf_pwm = 0;
+			        		rightf_pwm = 0;
 						rightb_pwm = power;
 					    leftb_pwm = (x_volts * (power) / 1.65); 
+					    
+					    led_control = 2;
 					}
-			    }
-			    //Test if we are moving to the right
-			    else if ( x_volts > 1.63 ) 
-			    {
-			        //Test if we are going forward or backwards
-			        if(y_power >= -0.02)
-			        {
-			        	leftb_pwm = 0;
+				    }
+				    //Test if we are moving to the right
+				    else if ( x_volts > 1.63 ) 
+				    {
+				        //Test if we are going forward or backwards
+				        if(y_power >= -0.15)
+				        {
+				        	leftb_pwm = 0;
 			        	rightb_pwm = 0;
 				        leftf_pwm = power;
 					    rightf_pwm = (power - ((x_volts-1.65) * (power) / 1.65));
-					}
-					else
-					{
-						leftf_pwm = 0;
-			        	rightf_pwm = 0;
-						leftb_pwm = power;
-					    rightb_pwm = power - ((x_volts-1.65) * (power) / 1.65); 
-					}
-			    }
-			    //Test to see if the thumbstick is in the middle
-			    else if ((1.60 <= x_volts && x_volts <= 1.63) && (1.62 <= y_volts && y_volts <= 1.67))
-			    {
-			        // Thumbstick is in the middle, stop both motors
-			        leftf_pwm = 0;
-			        rightf_pwm = 0;
-			        leftb_pwm = 0;
-			        rightb_pwm = 0;
-			    }
-			    //Else move fowards or backwards
-			    else 
-			    {
-			    	//Test if we are going forward or backwards
-			    	if(y_power >= -0.02)
-			        {
-			        	leftb_pwm = 0;
-			        	rightb_pwm = 0;
-				    	leftf_pwm = power;
-				    	rightf_pwm = power*0.91;
+					    
+					    led_control = 4;
+						}
+						else
+						{
+							leftf_pwm = 0;
+			        			rightf_pwm = 0;
+							leftb_pwm = power;
+					   		rightb_pwm = power - ((x_volts-1.65) * (power) / 1.65); 
+					    
+					   		led_control = 2;
+						}
 				    }
-				    else
+				    //Test to see if the thumbstick is in the middle
+				    else if ((1.60 <= x_volts && x_volts <= 1.63) && (1.62 <= y_volts && y_volts <= 1.67))
 				    {
-				    	leftf_pwm = 0;
+				        // Thumbstick is in the middle, stop both motors
+				        leftf_pwm = 0;
 			        	rightf_pwm = 0;
-				    	leftb_pwm = power*0.95;
-				    	rightb_pwm = power;
+			        	leftb_pwm = 0;
+			       		rightb_pwm = 0;
+			        
+			        	led_control = 0;
+				    }
+				    //Else move fowards or backwards
+				    else 
+				    {
+				    	//Test if we are going forward or backwards
+				    	if(y_power >= -0.15)
+				        {
+				        	leftb_pwm = 0;
+			        		rightb_pwm = 0;
+				    		leftf_pwm = power;
+				    		rightf_pwm = power*0.91;
+				    	
+				    		led_control = 1;
+					    }
+					    else
+					    {
+					    	leftf_pwm = 0;
+			        		rightf_pwm = 0;
+				    		leftb_pwm = power;
+				    		rightb_pwm = power*0.91;
+				    	
+				    		led_control = 2;
+					    }
 				    }
 			    }
 			
 		}
 			   //printf("\rHIGH, %i, %i, \n", leftf_pwm, rightf_pwm);
 			   //printf("LOW, %i, %i, \n", leftb_pwm, rightb_pwm);
+			   
+			//PB4 yellow left
+    		//PB5 yellow right
+    		//PB6 red
+    		//PB7 white
 		
+			//stopped
+			if(led_control == 0)
+			{
+				GPIOB->ODR &= ~(BIT6);//Turn On Red
+				
+				GPIOB->ODR &= ~(BIT4);//Turn On Yellow Left
+				GPIOB->ODR &= ~(BIT5);//Turn On Yellow Right
+				GPIOB->ODR |= BIT7; //Turn Off White
+			}
+			//forward
+			else if(led_control == 1)
+			{
+				GPIOB->ODR &= ~(BIT4);//Turn On Yellow Left
+				GPIOB->ODR &= ~(BIT5);//Turn On Yellow Right
+				
+				GPIOB->ODR |= BIT6; //Turn Off Red
+				GPIOB->ODR |= BIT7; //Turn Off White
+			}
+			//backward
+			else if(led_control == 2)
+			{
+				GPIOB->ODR &= ~(BIT7);//Turn On White
+				
+				GPIOB->ODR &= ~(BIT4);//Turn On Yellow Left
+				GPIOB->ODR &= ~(BIT5);//Turn On Yellow Right
+				GPIOB->ODR |= BIT6; //Turn Off Red
+			}
+			//left
+			else if(led_control == 3)
+			{				
+				blink_left++;
+				
+				if(blink_left == 10000)
+				{
+					GPIOB->ODR ^= BIT4; // Toggle PB4, Yellow Left
+					blink_left = 0;
+				}
+				
+				GPIOB->ODR &= ~(BIT5);//Turn On Yellow Right
+				GPIOB->ODR |= BIT7; //Turn Off White
+				GPIOB->ODR |= BIT6; //Turn Off Red
+			}
+			//right
+			else if(led_control == 4)
+			{
+				blink_right++;
+				
+				if(blink_right == 10000)
+				{
+					GPIOB->ODR ^= BIT5; // Toggle PB5, Yellow Right
+					blink_right = 0;
+				}
+				
+				GPIOB->ODR &= ~(BIT4);//Turn On Yellow Left
+				GPIOB->ODR |= BIT7; //Turn Off White
+				GPIOB->ODR |= BIT6; //Turn Off Red
+			}
+			//auto drive
+			else if(led_control == 5)
+			{
+				blink_auto++;
+				
+				if(blink_auto == 10000)
+				{
+					GPIOB->ODR ^= BIT4; // Toggle Yellow Left
+					GPIOB->ODR ^= BIT5; // Toggle Yellow Right
+					GPIOB->ODR ^= BIT6; // Toggle Red
+					GPIOB->ODR ^= BIT7;	// Toggle White
+					
+					blink_auto = 0;
+				}
+			}
 		
 	}
 
