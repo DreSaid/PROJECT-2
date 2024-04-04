@@ -4,6 +4,8 @@ import sys
 import math
 import time
 
+#15cm/s
+
 # Initialize Pygame
 pygame.init()
 
@@ -72,7 +74,7 @@ prev_x, prev_y = x, y
 ser = serial.Serial('COM4', 115200)  # Update with the correct COM port and baud rate
 
 # Angle and turning speed
-angle = -90
+angle = 90
 turn_speed = 75  # Degrees per second
 
 # Game loop
@@ -85,6 +87,7 @@ clear_screen()
 origin_x, origin_y = width // 2, height // 2  # Define the origin at the middle of the screen
 prev_x=origin_x
 prev_y=origin_y
+speed = 0
 
 while running:
     current_time = time.time()  # Record the current time
@@ -100,29 +103,40 @@ while running:
     # Read joystick values from the serial port
     data = ser.readline().decode().strip()
     if data:
-        x_volts, y_volts = map(float, data.split(','))
-
+        x_volts, y_volts, metal = map(float, data.split(','))
         # Calculate speed and direction based on joystick inputs
-        if y_volts < 1.6:
-            speed = -(y_volts - 1.6) * 1  # Reverse speed
-        elif y_volts > 1.65:
-            speed = -(y_volts - 1.65) * 1  # Forward speed
-        else:
-            speed = 0  # Neutral
-
-        # Calculate the angle of the robot's movement
-        if x_volts >= 1.60 and x_volts <= 1.62:  # Neutral, hold direction
-            pass
-        elif x_volts < 0.3:
-            angle += turn_speed * elapsed_time  # Spin left
-            speed = 0
-        elif x_volts >= 0.3 and x_volts < 1.62:
-            angle += turn_speed * (1.62 - x_volts) / 1.6 * elapsed_time  # Slightly turn left
-        elif x_volts > 1.62 and x_volts <= 3.0:
-            angle -= turn_speed * (x_volts - 1.62) / 1.58 * elapsed_time  # Slightly turn right
-        elif x_volts >= 3.0:
-            angle -= turn_speed * elapsed_time  # Spin right
-            speed = 0
+        if y_volts > 3:
+            if x_volts < 0.3:
+                angle += 2
+                speed = 0.15
+                 #angle left + fast forward
+            elif x_volts > 3:
+                angle -= 1.3
+                speed = +0.15
+                 #angle right and fast forward
+            else:
+                 speed = 0.323
+        elif y_volts < 0.3:
+            if x_volts < 0.3:
+                angle -= 1.3
+                speed = -0.10
+                #angle right ? + slow back
+            elif x_volts > 3:
+                angle += 1.3
+                speed = -0.10
+                #angle left ? + slow back
+            else:
+                speed = -0.304
+        else: 
+            if x_volts < 0.3:
+                angle += 2
+                #speed?
+            elif x_volts > 3:
+                angle -= 2
+            else:
+                speed = 0
+        
+        
 
         # Update cursor position based on speed and direction
         x += (speed * math.cos(angle * math.pi / 180))
@@ -140,6 +154,14 @@ while running:
 
         # Draw a line from the previous position to the current position
         pygame.draw.line(screen, (0, 0, 255), (prev_x, prev_y), (cursor_x, cursor_y))
+
+        if metal:
+            #pygame.draw.circle(screen, (255,0,0), (cursor_x, cursor_y),2)
+            # Draw an "X" at the cursor position
+            pygame.draw.line(screen, (255, 0, 0), (cursor_x - 10, cursor_y - 10), (cursor_x + 10, cursor_y + 10), 2)  # Diagonal line 1
+            pygame.draw.line(screen, (255, 0, 0), (cursor_x + 10, cursor_y - 10), (cursor_x - 10, cursor_y + 10), 2)  # Diagonal line 2
+
+
 
         # Update the display
         pygame.display.flip()
