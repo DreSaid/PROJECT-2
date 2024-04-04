@@ -214,10 +214,9 @@ long int Get_time (void)
 
 void Hardware_Init(void)
 {
-    
-	GPIOA->OSPEEDR=0xffffffff; // All pins of port A configured for very high speed! Page 201 of RM0451
+	RCC->IOPENR |= BIT0 | BIT1;// peripheral clock enable for port A and B
 
-	RCC->IOPENR |= BIT0; // peripheral clock enable for port A
+	GPIOA->OSPEEDR=0xffffffff; // All pins of port A configured for very high speed! Page 201 of RM0451
 
     GPIOA->MODER = (GPIOA->MODER & ~(BIT27|BIT26)) | BIT26; // Make pin PA13 output (page 200 of RM0451, two bits used to configure: bit0=1, bit1=0))
 	GPIOA->ODR |= BIT13; // 'set' pin to 1 is normal operation mode.
@@ -246,7 +245,14 @@ void Hardware_Init(void)
 	
 	GPIOA->PUPDR |= BIT14; 
 	GPIOA->PUPDR &= ~(BIT15);
+
+	GPIOB->OSPEEDR=0xffffffff; // All pins of port B configured for very high speed! Page 201 of RM0451
 	
+	GPIOB->MODER = (GPIOB->MODER & ~(BIT9|BIT8)) | BIT8; // Make pin PB4 output, yellow left
+    	GPIOB->MODER = (GPIOB->MODER & ~(BIT11|BIT10)) | BIT10; // Make pin PB5 output, yellow right
+   	GPIOB->MODER = (GPIOB->MODER & ~(BIT13|BIT12)) | BIT12; // Make pin PB6 output, red
+   	GPIOB->MODER = (GPIOB->MODER & ~(BIT15|BIT14)) | BIT14; // Make pin PB7 output, white
+
 	// Set up timer
 	RCC->APB1ENR |= BIT0;  // turn on clock for timer2 (UM: page 177)
 	TIM2->ARR = F_CPU/DEF_F-1;
@@ -308,8 +314,11 @@ int main(void)
 	float ref_freq = 0.0; 
 	float freq_change = 0.0;
 
-
 	char test [40];
+
+	int led_control = 0;
+	int blink_left = 0;
+	int blink_right = 0;
 	
 	Hardware_Init();
 	initUART2(9600);
@@ -329,7 +338,7 @@ int main(void)
 	SendATCommand("AT+BAUD\r\n");
 	SendATCommand("AT+RFID\r\n");
 	SendATCommand("AT+DVID\r\n");
-	SendATCommand("AT+RFC\r\n");
+	SendATCommand("AT+RFC006\r\n");
 	SendATCommand("AT+POWE\r\n");
 	SendATCommand("AT+CLSS\r\n");
 	
@@ -597,38 +606,46 @@ int main(void)
 					if (x_volts < 1.60) 
 					{
 				    	//Test if we are going forward or backwards
-				    	if(y_power >= -0.02)
+				    	if(y_power >= -0.04)
 				    	{
 				    		leftb_pwm = 0;
-				        	rightb_pwm = 0;
-					    	rightf_pwm = power;
-						    leftf_pwm = (x_volts * (power) / 1.65); 
-						}
-						else
-						{
-							leftf_pwm = 0;
-				        	rightf_pwm = 0;
-							rightb_pwm = power;
-						    leftb_pwm = (x_volts * (power) / 1.65); 
-						}
+			        		rightb_pwm = 0;
+				    		rightf_pwm = power;
+					    	leftf_pwm = (x_volts * (power) / 1.65);
+					    
+					    	led_control = 3; 
+					}
+					else
+					{
+						leftf_pwm = 0;
+			        		rightf_pwm = 0;
+						rightb_pwm = power;
+					    leftb_pwm = (x_volts * (power) / 1.65); 
+					    
+					    led_control = 2;
+					}
 				    }
 				    //Test if we are moving to the right
 				    else if ( x_volts > 1.63 ) 
 				    {
 				        //Test if we are going forward or backwards
-				        if(y_power >= -0.02)
+				        if(y_power >= -0.04)
 				        {
 				        	leftb_pwm = 0;
-				        	rightb_pwm = 0;
-					        leftf_pwm = power;
-						    rightf_pwm = (power - ((x_volts-1.65) * (power) / 1.65));
+			        	rightb_pwm = 0;
+				        leftf_pwm = power;
+					    rightf_pwm = (power - ((x_volts-1.65) * (power) / 1.65));
+					    
+					    led_control = 4;
 						}
 						else
 						{
 							leftf_pwm = 0;
-				        	rightf_pwm = 0;
+			        			rightf_pwm = 0;
 							leftb_pwm = power;
-						    rightb_pwm = power - ((x_volts-1.65) * (power) / 1.65); 
+					   		rightb_pwm = power - ((x_volts-1.65) * (power) / 1.65); 
+					    
+					   		led_control = 2;
 						}
 				    }
 				    //Test to see if the thumbstick is in the middle
@@ -636,27 +653,33 @@ int main(void)
 				    {
 				        // Thumbstick is in the middle, stop both motors
 				        leftf_pwm = 0;
-				        rightf_pwm = 0;
-				        leftb_pwm = 0;
-				        rightb_pwm = 0;
+			        	rightf_pwm = 0;
+			        	leftb_pwm = 0;
+			       		rightb_pwm = 0;
+			        
+			        	led_control = 0;
 				    }
 				    //Else move fowards or backwards
 				    else 
 				    {
 				    	//Test if we are going forward or backwards
-				    	if(y_power >= -0.02)
+				    	if(y_power >= -0.04)
 				        {
 				        	leftb_pwm = 0;
-				        	rightb_pwm = 0;
-					    	leftf_pwm = power;
-					    	rightf_pwm = power*0.91;
+			        		rightb_pwm = 0;
+				    		leftf_pwm = power;
+				    		rightf_pwm = power*0.91;
+				    	
+				    		led_control = 1;
 					    }
 					    else
 					    {
 					    	leftf_pwm = 0;
-				        	rightf_pwm = 0;
-					    	leftb_pwm = power*0.95;
-					    	rightb_pwm = power;
+			        		rightf_pwm = 0;
+				    		leftb_pwm = power*0.95;
+				    		rightb_pwm = power;
+				    	
+				    		led_control = 2;
 					    }
 				    }
 			    }
@@ -664,7 +687,68 @@ int main(void)
 		}
 			   //printf("\rHIGH, %i, %i, \n", leftf_pwm, rightf_pwm);
 			   //printf("LOW, %i, %i, \n", leftb_pwm, rightb_pwm);
+		//PB4 yellow left
+    		//PB5 yellow right
+    		//PB6 red
+    		//PB7 white
 		
+		//stopped
+		if(led_control == 0)
+		{
+			GPIOB->ODR &= ~(BIT6);//Turn On Red
+			
+			GPIOB->ODR &= ~(BIT4);//Turn On Yellow Left
+			GPIOB->ODR &= ~(BIT5);//Turn On Yellow Right
+			GPIOB->ODR |= BIT7; //Turn Off White
+		}
+		//forward
+		else if(led_control == 1)
+		{
+			GPIOB->ODR &= ~(BIT4);//Turn On Yellow Left
+			GPIOB->ODR &= ~(BIT5);//Turn On Yellow Right
+			
+			GPIOB->ODR |= BIT6; //Turn Off Red
+			GPIOB->ODR |= BIT7; //Turn Off White
+		}
+		//backward
+		else if(led_control == 2)
+		{
+			GPIOB->ODR &= ~(BIT7);//Turn On White
+			
+			GPIOB->ODR &= ~(BIT4);//Turn On Yellow Left
+			GPIOB->ODR &= ~(BIT5);//Turn On Yellow Right
+			GPIOB->ODR |= BIT6; //Turn Off Red
+		}
+		//left
+		else if(led_control == 3)
+		{				
+			blink_left++;
+			
+			if(blink_left == 10000)
+			{
+				GPIOB->ODR ^= BIT4; // Toggle PB4, Yellow Left
+				blink_left = 0;
+			}
+			
+			GPIOB->ODR &= ~(BIT5);//Turn On Yellow Right
+			GPIOB->ODR |= BIT7; //Turn Off White
+			GPIOB->ODR |= BIT6; //Turn Off Red
+		}
+		//right
+		else if(led_control == 4)
+		{
+			blink_right++;
+			
+			if(blink_right == 10000)
+			{
+				GPIOB->ODR ^= BIT5; // Toggle PB5, Yellow Right
+				blink_right = 0;
+			}
+			
+			GPIOB->ODR &= ~(BIT4);//Turn On Yellow Left
+			GPIOB->ODR |= BIT7; //Turn Off White
+			GPIOB->ODR |= BIT6; //Turn Off Red
+		}
 		
 	}
 
