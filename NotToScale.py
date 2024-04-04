@@ -7,53 +7,59 @@ import time
 # Initialize Pygame
 pygame.init()
 
+
 # Set up the display
 width, height = 800, 600
 screen = pygame.display.set_mode((width, height))
 pygame.display.set_caption("Etch-a-Sketch")
-screen.fill((255, 255, 255))  # Fill the screen with white
 
-# Calculate grid spacing based on the desired range of the grid and screen dimensions
-grid_range = 75  # Range of the grid (from -150 to 150)
-grid_spacing = min(width, height) // (2 * grid_range)  # Spacing between grid lines
 
-# Define scale parameters
-grid_color = (200, 200, 200)  # Color for grid lines
-origin_x, origin_y = width // 2, height // 2  # Define the origin at the middle of the screen
-
-# Draw grid lines and label increments
-for i in range(-grid_range, grid_range + 1, 10):
-    # Vertical grid lines
-    pygame.draw.line(screen, grid_color, (origin_x + i * grid_spacing, 0), (origin_x + i * grid_spacing, height))
+# Function to draw grid lines
+def draw_grid():
+    # Calculate grid spacing based on the desired range of the grid and screen dimensions
+    grid_range = 75  # Range of the grid (from -150 to 150)
+    grid_spacing = min(width, height) // (2 * grid_range)  # Spacing between grid lines
     
-    # Labeling
-    font = pygame.font.Font(None, 24)
-    if i < 0:
-        text = font.render(str(-abs(i)), True, (0, 0, 0))  # Show negative value below 0
-    else:
-        text = font.render("+" + str(i), True, (0, 0, 0))  # Show positive value above 0 with "+"
-    
-    text_rect = text.get_rect(center=(origin_x + i * grid_spacing, origin_y + 270))  # Center vertically
-    screen.blit(text, text_rect)
+    # Define scale parameters
+    grid_color = (0, 0, 0)  # Color for grid lines (black)
+    origin_x, origin_y = width // 2, height // 2  # Define the origin at the middle of the screen
+
+    # Draw vertical grid lines and label increments
+    for i in range(-grid_range, grid_range + 1, 10):
+        pygame.draw.line(screen, grid_color, (origin_x + i * grid_spacing, 0), (origin_x + i * grid_spacing, height))
+
+        # Labeling
+        font = pygame.font.Font(None, 24)
+        if i < 0:
+            text = font.render(str(-abs(i)), True, (0, 0, 0))  # Show negative value below 0
+        else:
+            text = font.render("+" + str(i), True, (0, 0, 0))  # Show positive value above 0 with "+"
+
+        text_rect = text.get_rect(center=(origin_x + i * grid_spacing, origin_y + 270))  # Center vertically
+        screen.blit(text, text_rect)
+
+    # Draw horizontal grid lines and labels
+    for i in range(-grid_range, grid_range + 1, 10):
+        pygame.draw.line(screen, grid_color, (0, origin_y + i * grid_spacing), (width, origin_y + i * grid_spacing))
+
+        # Labeling
+        font = pygame.font.Font(None, 24)
+        if i < 0:
+            text = font.render("+" + str(abs(i)), True, (0, 0, 0))  # Show positive value with "+"
+        else:
+            text = font.render("-" + str(abs(i)), True, (0, 0, 0))  # Show negative value
+
+        text_rect = text.get_rect(center=(origin_x - 370, origin_y + i * grid_spacing))
+        screen.blit(text, text_rect)
 
 
+# Function to clear the screen except for the grid lines
+def clear_screen():
+    # Fill the screen with white
+    screen.fill((255, 255, 255))
 
-# Horizontal grid lines and labels
-for i in range(-grid_range, grid_range + 1, 10):
-    # Horizontal grid lines
-    pygame.draw.line(screen, grid_color, (0, origin_y + i * grid_spacing), (width, origin_y + i * grid_spacing))
-    
-    # Labeling
-    font = pygame.font.Font(None, 24)
-    if i < 0:
-        text = font.render("+" + str(abs(i)), True, (0, 0, 0))  # Show positive value with "+"
-    else:
-        text = font.render("-" + str(abs(i)), True, (0, 0, 0))  # Show negative value
-    
-    text_rect = text.get_rect(center=(origin_x - 370 , origin_y + i * grid_spacing))
-    screen.blit(text, text_rect)
-
-
+    # Redraw grid lines
+    draw_grid()
 
 # Cursor position
 x, y = 0, 0  # Initialize cursor position at the origin
@@ -61,16 +67,25 @@ x, y = 0, 0  # Initialize cursor position at the origin
 # Previous cursor position
 prev_x, prev_y = x, y
 
+
 # Initialize the serial port
 ser = serial.Serial('COM4', 115200)  # Update with the correct COM port and baud rate
 
 # Angle and turning speed
-angle = 90
+angle = -90
 turn_speed = 75  # Degrees per second
 
 # Game loop
 running = True
 last_time = time.time()  # Record the initial time
+
+# Clear the screen to remove all blue drawn lines
+clear_screen()
+
+origin_x, origin_y = width // 2, height // 2  # Define the origin at the middle of the screen
+prev_x=origin_x
+prev_y=origin_y
+
 while running:
     current_time = time.time()  # Record the current time
     elapsed_time = current_time - last_time  # Calculate the elapsed time since the last iteration
@@ -79,6 +94,8 @@ while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
+
+
 
     # Read joystick values from the serial port
     data = ser.readline().decode().strip()
@@ -112,15 +129,17 @@ while running:
         y += (speed * math.sin(angle * math.pi / 180))
 
         # Ensure the cursor stays within the screen bounds
-        x = max(-grid_range, min(x, grid_range))  # Limit x-coordinate to -grid_range to grid_range
-        y = max(-grid_range, min(y, grid_range))  # Limit y-coordinate to -grid_range to grid_range
+        x = max(-75, min(x, 75))  # Limit x-coordinate to -75 to 75
+        y = max(-75, min(y, 75))  # Limit y-coordinate to -75 to 75
 
         # Map cursor position to screen coordinates with scale and origin adjustment
-        cursor_x = int(x * grid_spacing) + origin_x
-        cursor_y = origin_y - int(y * grid_spacing)
+        origin_x, origin_y = width // 2, height // 2  # Define the origin at the middle of the screen
+        cursor_x = int(x * 5) + origin_x
+        cursor_y = origin_y - int(y * 5)
+        
 
         # Draw a line from the previous position to the current position
-        pygame.draw.line(screen, (0, 0, 0), (prev_x, prev_y), (cursor_x, cursor_y))
+        pygame.draw.line(screen, (0, 0, 255), (prev_x, prev_y), (cursor_x, cursor_y))
 
         # Update the display
         pygame.display.flip()
