@@ -379,11 +379,11 @@ void main(void)
     int timeout_cnt = 0;
     int received_value; //this is a TESTING variable
     int count =0;
-    int freq_change;
+    int freq_change = 0;
     int i;
     
     int set_freq = 1;	
-    int ref_freq = 0;
+    int ref_freq = 1;
 	
 	DDPCON = 0;
 	CFGCON = 0;
@@ -453,7 +453,7 @@ void main(void)
     	voltage_y=adcval_y*3.3/1023.0;
     	adcval_x = ADCRead(2); 	//reading from AN3 (RB1)
     	voltage_x = adcval_x*3.3/1023.0;
-    	
+   	
 		
 		//FIRST SECTION SENDS AN M when we want a metal reading--how often depends on count variable and delays
 		
@@ -519,14 +519,13 @@ void main(void)
 		//freq_change=100;
 		if (freq_change > ref_freq) 
 		{
-			SetupTimer1(freq_change*4); //(this function also turns speaker on)
+			SetupTimer1(freq_change*5); //(this function also turns speaker on)
+			printf("%.3f,%.3f,1\n\r",voltage_x,voltage_y); //python
 			//WE NEED TO WRITE AN EQUATION FOR THIS PARAMETER, maybe use BASE_FREQ
-			for(i = 1; i <= freq_change/50 ; i++)
+			for(i = 1; i <= (freq_change-ref_freq) / 13 && (i < 16); i++)
 			{
 				DefineCustomCharacter(); 
-				PrintBlack(i - 1); 
-					
-				
+				PrintBlack(i - 1); 	
 			}
 			
 			   for(; i < 16; i++) 
@@ -539,6 +538,7 @@ void main(void)
 		{
 			T1CONbits.ON = 0; //speaker off otherwise
 			LCDprint("", 2, 1);
+			printf("%.3f,%.3f,0\n\r",voltage_x,voltage_y); //python
 		}
 
 		count++;
